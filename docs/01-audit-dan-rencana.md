@@ -25,6 +25,8 @@ Lingkup: folder proyek `D:\subdomain.sumenep-mata`, aset identitas Mata Madura, 
 | `D:\AI MATA MADURA\HEADER.jpg` | Wordmark **matamadura** — huruf kondensed geometris, "mata" hitam, "madura" merah. | JPG berlatar putih, bukan vektor. Tidak memuat garis merah. |
 | `D:\AI MATA MADURA\LOGO MATA MADURA.jpeg` | Emblem bundar karapan sapi dengan lintasan merah–navy dan huruf "M". | 300 px, JPG. Cocok sebagai sumber aksen garis merah dan favicon. |
 
+> **Pembaruan 20 November 2026:** pemilik proyek menyediakan logo final `logo.png` di folder proyek: SUMENEP (sans-serif tebal) di atas matamadura, dengan garis merah. Atas persetujuan pemilik, seluruh aset logo kini dibangun dari file itu (lihat docs/02-design-system.md) dan menggantikan rekonstruksi di bawah.
+
 **Selisih mockup vs prompt final.** Mockup menulis "Mata Madura" dengan serif miring merah. Prompt final (B.1, kriteria O.2) mewajibkan wordmark asli **matamadura** di bawah SUMENEP. Rencana ini mengikuti prompt final: wordmark asli direkonstruksi menjadi SVG berlatar transparan, dan seluruh bagian lain mockup tetap diikuti.
 
 ### 1.3 Toolchain lokal

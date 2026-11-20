@@ -12,14 +12,13 @@ Semua aset logo dihasilkan oleh `npm run brand:build` dari satu sumber, `brand/s
 | Horizontal | `sumenep-matamadura-horizontal.svg/.png` | Ruang pendek dan lebar (kop surat, spanduk tipis) |
 | Monokrom gelap | `sumenep-matamadura-mono.svg/.png` | Cetak satu warna |
 | Monokrom terang | `sumenep-matamadura-mono-white.svg/.png` | Di atas latar gelap atau foto |
-| Favicon | `src/app/icon.svg`, `favicon.ico`, `apple-icon.png` | "S" Newsreader miring, putih di atas merah |
+| Favicon | `src/app/icon.svg`, `favicon.ico`, `apple-icon.png` | Huruf "S" dari logo, putih di atas merah logo |
 
 Komposisi logo:
 
-- **SUMENEP** memakai Newsreader ExtraBold Italic (lisensi SIL OFL), diubah menjadi path.
-- Di bawahnya wordmark asli **matamadura** hasil trace dari `HEADER.jpg`: "mata" berwarna `#111827`, "madura" berwarna `#A61B2B`.
-- Lebar wordmark 70% dari lebar SUMENEP.
-- Di bawahnya ada garis merah meruncing yang mengikuti lintasan merah pada emblem Mata Madura.
+- Sumbernya adalah **logo resmi `brand/source/logo.png`** dari pemilik proyek, di-trace menjadi vektor oleh `brand/source/trace-logo.cjs`.
+- Bagian-bagiannya: **SUMENEP** (sans-serif tebal, tegak), wordmark **matamadura** ("mata" hitam, "madura" merah), dan garis merah melengkung di bawahnya.
+- Warna asli logo dipertahankan: hitam `#050404` dan merah `#D60303`. Warna aksen situs tetap merah marun `#A61B2B` dan tidak dipakai untuk logo.
 - Semua latar transparan.
 
 Lebar minimum logo bertingkat: 120 px di layar.

@@ -90,6 +90,5 @@ Komponen hanya mengambil data lewat [src/lib/content.ts](src/lib/content.ts). Sa
 ## Batasan yang diketahui
 
 - **Gambar demo** diambil dari mockup dengan resolusi rendah. Gambar utama tampak agak lembut di layar desktop beresolusi tinggi. Foto asli beserta kreditnya masuk lewat CMS.
-- **Wordmark matamadura** hasil trace dari `HEADER.jpg`. Hasilnya tajam untuk web dan cetak ukuran kecil. Untuk cetak besar, sebaiknya gunakan berkas vektor asli dari desainer bila ada.
-- **Warna "madura"** pada logo memakai merah palet `#A61B2B`, bukan merah terang di `HEADER.jpg`. Dapat diubah di `scripts/build-brand.mjs`.
+- **Logo** adalah hasil trace vektor dari logo resmi `brand/source/logo.png` (2172×724 px), tajam untuk web dan cetak ukuran sedang. Untuk cetak besar, sebaiknya gunakan berkas vektor asli dari desainer bila ada.
 - **Belum ada git.** Disarankan `git init` sebelum Tahap 4.
