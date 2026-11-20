@@ -1,0 +1,24 @@
+# dependencies & build output
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# secrets — never commit (only .env.example is tracked)
+.env
+.env.*
+!.env.example
+
+# local PostgreSQL instance, database backups, CMS uploads
+.data/
+backups/
+media/
+
+# regenerable QA output
+qa/shots/
+qa/lighthouse/*.html
+
+# OS / editor
+.DS_Store
+Thumbs.db

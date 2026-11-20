@@ -1,0 +1,295 @@
+{
+  "base": "http://localhost:3200",
+  "pages": [
+    {
+      "url": "/",
+      "width": 360,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/",
+      "width": 375,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/",
+      "width": 390,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/",
+      "width": 414,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/",
+      "width": 430,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/",
+      "width": 768,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/",
+      "width": 820,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/",
+      "width": 1024,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/",
+      "width": 1280,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/",
+      "width": 1440,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/",
+      "width": 1600,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/",
+      "width": 1920,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 360,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 375,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 390,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 414,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 430,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 768,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 820,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 1024,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 1280,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 1440,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 1600,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/artikel/sumenep-cerita-yang-tumbuh-di-ujung-kepulauan",
+      "width": 1920,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 360,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 375,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 390,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 414,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 430,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 768,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 820,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 1024,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 1280,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 1440,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 1600,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/rubrik/catatan-sumenep",
+      "width": 1920,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 360,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 375,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 390,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 414,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 430,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 768,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 820,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 1024,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 1280,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 1440,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 1600,
+      "overflow": 0,
+      "errors": 0
+    },
+    {
+      "url": "/cari?q=pulau",
+      "width": 1920,
+      "overflow": 0,
+      "errors": 0
+    }
+  ],
+  "links": 26,
+  "failures": []
+}

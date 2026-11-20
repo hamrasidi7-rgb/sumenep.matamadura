@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/* ─── Design tokens · SUMENEP – Mata Madura ────────────────────────────────
+   Satu sumber warna, tipografi, dan jarak. Breakpoint memakai bawaan Tailwind:
+   md 48rem (768) = tablet · lg 64rem (1024) · xl 80rem (1280) = desktop.     */
+@theme {
+  --color-brand: #a61b2b;
+  --color-brand-deep: #8a1523;
+  --color-ink: #111827;
+  --color-muted: #62666d;
+  --color-line: #e5e7eb;
+  --color-paper: #ffffff;
+  --color-warm: #faf9f7;
+  --color-blush: #f8efec;
+
+  --font-display: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
+  --font-serif: var(--font-lora), Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+
+  --radius-media: 0.5rem;
+  --shadow-float: 0 10px 30px -8px rgb(17 24 39 / 0.35), 0 2px 6px rgb(17 24 39 / 0.18);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    overflow-x: clip;
+  }
+  main {
+    padding-bottom: 3.5rem;
+  }
+  @media (min-width: 48rem) {
+    main {
+      padding-bottom: 5rem;
+    }
+  }
+  /* The page always ends with the footer: reserve room there so the floating
+     Chator button never covers its last line (see ChatorWidget). */
+  .fab-clearance {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-brand) 18%, transparent);
+  }
+  /* Lock page scroll while a modal dialog (menu / Chator) is open. */
+  html:has(dialog[open]) {
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  .container-site {
+    @apply mx-auto w-full max-w-[75rem] px-5 md:px-8 xl:px-10;
+  }
+  .label-section {
+    @apply font-display text-[0.9375rem] leading-tight font-bold text-brand;
+  }
+  .meta {
+    @apply font-sans text-[0.8125rem] leading-snug text-muted md:text-sm;
+  }
+  .link-underline {
+    @apply underline decoration-transparent decoration-1 underline-offset-4 transition-colors;
+  }
+  .link-underline:hover {
+    @apply decoration-current;
+  }
+  .tap {
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center;
+  }
+}
+
+/* ─── Drawer & sheet animations (native <dialog>) ─────────────────────────── */
+dialog.sheet {
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+dialog.sheet::backdrop {
+  background: rgb(17 24 39 / 0.45);
+  opacity: 0;
+  transition: opacity 0.2s ease, overlay 0.2s allow-discrete, display 0.2s allow-discrete;
+}
+dialog.sheet[open]::backdrop {
+  opacity: 1;
+}
+@starting-style {
+  dialog.sheet[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+dialog.drawer {
+  inset: 0 0 0 auto;
+  height: 100dvh;
+  width: min(88vw, 23.5rem);
+  transform: translateX(100%);
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), overlay 0.24s allow-discrete,
+    display 0.24s allow-discrete;
+}
+dialog.drawer[open] {
+  transform: translateX(0);
+}
+@starting-style {
+  dialog.drawer[open] {
+    transform: translateX(100%);
+  }
+}
+
+/* Chator AI: full-screen sheet on phones/tablets, floating panel on desktop. */
+dialog.chator {
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  opacity: 0;
+  transform: translateY(1.5rem);
+  transition: opacity 0.2s ease, transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    overlay 0.24s allow-discrete, display 0.24s allow-discrete;
+}
+dialog.chator[open] {
+  opacity: 1;
+  transform: translateY(0);
+}
+@starting-style {
+  dialog.chator[open] {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+}
+@media (min-width: 64rem) {
+  dialog.chator {
+    inset: auto calc(1.5rem + env(safe-area-inset-right)) 1.5rem auto;
+    width: 26rem;
+    height: min(42rem, calc(100dvh - 3rem));
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-float);
+  }
+  dialog.chator::backdrop {
+    background: rgb(17 24 39 / 0.18);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.drawer,
+  dialog.chator,
+  dialog.sheet::backdrop {
+    transition: none;
+  }
+}
