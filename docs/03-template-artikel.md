@@ -55,7 +55,7 @@ Semua nilai berada dalam rentang brief §4.3. Padding horizontal di ponsel 20 px
 ## QA
 
 ```bash
-npm run build && npm start
+npm run build && npm run start:local
 npm run qa:articles   # 3 template × 9 lebar (360–1920) + interaksi
 ```
 

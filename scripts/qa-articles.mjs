@@ -1,6 +1,6 @@
 // QA for the three article templates (Tahap 4).
 //
-//   npm run build && npm start            (server on :3200)
+//   npm run build && npm run start:local   (server on :3200)
 //   node scripts/qa-articles.mjs [baseUrl]
 //
 // Per template × width: no horizontal overflow, headline fits its box, images

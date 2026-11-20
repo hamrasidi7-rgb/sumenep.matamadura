@@ -6,16 +6,17 @@
   "scripts": {
     "dev": "next dev -p 3200",
     "build": "next build",
-    "start": "next start -p 3200",
+    "start": "next start",
     "typecheck": "tsc --noEmit",
     "qa:shots": "node scripts/shoot.mjs",
     "brand:build": "node scripts/build-brand.mjs",
     "demo:media": "node scripts/prepare-demo-media.mjs",
     "qa:articles": "node scripts/qa-articles.mjs",
-    "qa:export": "node scripts/export-screenshots.mjs"
+    "qa:export": "node scripts/export-screenshots.mjs",
+    "start:local": "next start -p 3200"
   },
   "engines": {
-    "node": ">=20.9"
+    "node": ">=20.9.0"
   },
   "dependencies": {
     "lucide-react": "1.66.0",

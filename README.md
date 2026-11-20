@@ -18,7 +18,7 @@ Aplikasi ini berdiri sendiri. Ia tidak mengubah WordPress `matamaduranews.com`, 
 | 5 · CMS | Belum. **Butuh kredensial PostgreSQL lokal** untuk database baru `sumenep_cms` |
 | 6 · Chator AI | **Ditunda (keputusan pemilik proyek).** Widget tampil dengan status "sedang dalam pengembangan", tanpa integrasi |
 | 7 · SEO & performa | Sebagian: metadata, canonical, `noindex` saat staging, robots.txt |
-| 8 · Uji & deploy | Belum. **Butuh keputusan** hosting, database produksi, bucket media, DNS |
+| 8 · Uji & deploy | Persiapan deployment Hostinger: [docs/04-deployment-hostinger.md](docs/04-deployment-hostinger.md). Deployment menunggu langkah pemilik di hPanel |
 
 ## Menjalankan
 
@@ -27,7 +27,7 @@ npm install
 cp .env.example .env.local
 npm run dev                # http://localhost:3200
 
-npm run build && npm start # produksi lokal di :3200
+npm run build && npm run start:local   # produksi lokal di :3200 (di server: npm start, port dari $PORT)
 npm run typecheck
 npm run qa:shots           # screenshot + uji responsif (server harus jalan)
 npm run qa:articles        # 3 template artikel × 9 lebar + interaksi

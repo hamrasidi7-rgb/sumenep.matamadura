@@ -1,6 +1,6 @@
 // Responsive QA: screenshots + automatic checks on every target width.
 //
-//   npm run build && npm start        (server on :3200)
+//   npm run build && npm run start:local   (server on :3200)
 //   node scripts/shoot.mjs [baseUrl]
 //
 // Uses the locally installed Chrome (playwright-core, no browser download).
