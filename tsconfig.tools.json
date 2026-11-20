@@ -1,0 +1,9 @@
+{
+  "//": "Type-checks the backend tooling (CLI scripts, tests) without making them part of the Next.js build.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": ["next-env.d.ts", "src/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules", "brand"]
+}

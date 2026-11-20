@@ -5,7 +5,7 @@ Media editorial untuk `sumenep.matamaduranews.com`.
 
 Aplikasi ini berdiri sendiri. Ia tidak mengubah WordPress `matamaduranews.com`, database, media, maupun DNS-nya.
 
-**Stack:** Next.js 16.4 (App Router) · React 19.3 · TypeScript · Tailwind CSS v4 · lucide-react. Font Newsreader, Lora, dan Inter di-host sendiri lewat `next/font`. Payload CMS + PostgreSQL menyusul di Tahap 5 (lihat [docs/01-audit-dan-rencana.md](docs/01-audit-dan-rencana.md)).
+**Stack:** Next.js 16.4 (App Router) · React 19.3 · TypeScript · Tailwind CSS v4 · lucide-react. Font Newsreader, Lora, dan Inter di-host sendiri lewat `next/font`. Backend CMS: Prisma 6.19 + PostgreSQL 16 + Zod (fondasi: [docs/05-backend-fondasi.md](docs/05-backend-fondasi.md)).
 
 ## Status
 
@@ -15,7 +15,7 @@ Aplikasi ini berdiri sendiri. Ia tidak mengubah WordPress `matamaduranews.com`, 
 | 2 · Design system & logo | Selesai: [docs/02-design-system.md](docs/02-design-system.md) |
 | 3 · Homepage responsif | Selesai. Lolos QA otomatis pada 12 lebar layar (360–1920 px) |
 | 4 · Pengalaman artikel | Selesai: tiga template (Standard, Feature, Spotlight), lihat [docs/03-template-artikel.md](docs/03-template-artikel.md) |
-| 5 · CMS | Belum. **Butuh kredensial PostgreSQL lokal** untuk database baru `sumenep_cms` |
+| 5 · CMS | Fondasi backend (Fase 2) selesai di branch `backend/fase-2-fondasi`: skema, migrasi, satu Admin, Activity Log append-only, CLI bootstrap/pemulihan, seed kanal/rubrik, 77 tes. Login (Fase 3) dan CMS artikel (Fase 4) menyusul. Rancangan cache/SEO: [docs/06-cache-seo.md](docs/06-cache-seo.md); layanan eksternal: [docs/07-layanan-eksternal.md](docs/07-layanan-eksternal.md) |
 | 6 · Chator AI | **Ditunda (keputusan pemilik proyek).** Widget tampil dengan status "sedang dalam pengembangan", tanpa integrasi |
 | 7 · SEO & performa | Sebagian: metadata, canonical, `noindex` saat staging, robots.txt |
 | 8 · Uji & deploy | Persiapan deployment Hostinger: [docs/04-deployment-hostinger.md](docs/04-deployment-hostinger.md). Deployment menunggu langkah pemilik di hPanel |
@@ -46,11 +46,22 @@ npm run qa:articles        # 3 template artikel × 9 lebar + interaksi
 
 Hasilnya disimpan di `qa/shots/` dan `qa/report.json`.
 
+### Backend (development)
+
+```bash
+npm run db:setup           # PostgreSQL 16 lokal terisolasi + .env/.env.test (password acak)
+npm run db:migrate:dev     # terapkan/buat migrasi, lalu hak akses
+npm run db:seed            # 5 kanal + 5 rubrik + band Catatan Sumenep
+npm run admin:bootstrap -- --email … --name "…"   # Admin pertama (satu-satunya)
+npm run admin:recover -- status                    # pemulihan: lihat docs/05
+npm test                   # tes unit + tes database (database sementara)
+```
+
 ## Struktur
 
 ```
 src/
-  app/(site)/            layout publik + rute (route group; Payload memakai (payload) di Tahap 5)
+  app/(site)/            layout publik + rute (route group; admin CMS menyusul di Fase 3–4)
     page.tsx             beranda
     artikel/[slug]       artikel
     kanal/[slug]         5 kanal        rubrik/[slug]   5 rubrik
@@ -69,6 +80,9 @@ src/
     ui/                  MediaImage, ArticleMeta, AuthorAvatar, SectionHeading
   content/               types (kontrak = calon koleksi CMS), sections, seed (konten contoh)
   lib/                   content (adapter), article-utils, site, format
+  server/                backend: db (Prisma), auth/password, admin (bootstrap/recover), validation (Zod), activity-log, seed
+prisma/                  schema.prisma + migrations/
+tests/                   unit/ + db/ (lihat docs/05)
 brand/source/            data sumber logo (hasil outline dan trace)
 scripts/                 build-brand, prepare-demo-media, shoot (QA)
 public/brand · public/demo · public/illustrations · public/og-default.png
@@ -76,7 +90,7 @@ public/brand · public/demo · public/illustrations · public/og-default.png
 
 ## Konten
 
-Komponen hanya mengambil data lewat [src/lib/content.ts](src/lib/content.ts). Saat ini adapter membaca `src/content/seed.ts`. Isinya **konten contoh desain, bukan berita faktual**: tanpa angka, tanpa kutipan, dan setiap gambar diberi kredit "Ilustrasi demo". Footer dan halaman artikel menampilkan label tersebut. Di Tahap 5, fungsi-fungsi adapter diganti dengan Payload Local API tanpa perlu mengubah komponen.
+Komponen hanya mengambil data lewat [src/lib/content.ts](src/lib/content.ts). Saat ini adapter membaca `src/content/seed.ts`. Isinya **konten contoh desain, bukan berita faktual**: tanpa angka, tanpa kutipan, dan setiap gambar diberi kredit "Ilustrasi demo". Footer dan halaman artikel menampilkan label tersebut. Saat integrasi CMS (Fase 8), fungsi-fungsi adapter membaca database lewat Prisma tanpa perlu mengubah komponen.
 
 ## Variabel lingkungan
 
@@ -84,6 +98,7 @@ Komponen hanya mengambil data lewat [src/lib/content.ts](src/lib/content.ts). Sa
 | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | URL kanonik. Produksi: `https://sumenep.matamaduranews.com` |
 | `NEXT_PUBLIC_SITE_ENV` | Hanya `production` yang boleh diindeks. Nilai lain dianggap staging: `noindex` dan robots.txt menolak semua crawler |
+| `DATABASE_URL` · `DIRECT_URL` · `DB_APP_ROLE` | Database CMS (role runtime · role pemilik untuk migrasi/CLI · nama role runtime). Development: dibuat otomatis oleh `npm run db:setup`. Rincian: [docs/05-backend-fondasi.md](docs/05-backend-fondasi.md) |
 
 **Chator AI** sedang dalam pengembangan. Integrasi dengan MataGen.ai menjadi proyek terpisah. Untuk saat ini tidak ada API, kunci, atau proxy AI di aplikasi ini. Panelnya hanya menjelaskan rencana fitur, tanpa kolom pertanyaan dan tanpa jawaban otomatis.
 
@@ -91,4 +106,3 @@ Komponen hanya mengambil data lewat [src/lib/content.ts](src/lib/content.ts). Sa
 
 - **Gambar demo** diambil dari mockup dengan resolusi rendah. Gambar utama tampak agak lembut di layar desktop beresolusi tinggi. Foto asli beserta kreditnya masuk lewat CMS.
 - **Logo** adalah hasil trace vektor dari logo resmi `brand/source/logo.png` (2172×724 px), tajam untuk web dan cetak ukuran sedang. Untuk cetak besar, sebaiknya gunakan berkas vektor asli dari desainer bila ada.
-- **Belum ada git.** Disarankan `git init` sebelum Tahap 4.
