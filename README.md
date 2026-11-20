@@ -14,7 +14,7 @@ Aplikasi ini berdiri sendiri. Ia tidak mengubah WordPress `matamaduranews.com`, 
 | 1 · Audit & rencana | Selesai: [docs/01-audit-dan-rencana.md](docs/01-audit-dan-rencana.md) |
 | 2 · Design system & logo | Selesai: [docs/02-design-system.md](docs/02-design-system.md) |
 | 3 · Homepage responsif | Selesai. Lolos QA otomatis pada 12 lebar layar (360–1920 px) |
-| 4 · Pengalaman artikel | Belum. Halaman artikel saat ini memakai tata letak Standard dasar |
+| 4 · Pengalaman artikel | Selesai: tiga template (Standard, Feature, Spotlight), lihat [docs/03-template-artikel.md](docs/03-template-artikel.md) |
 | 5 · CMS | Belum. **Butuh kredensial PostgreSQL lokal** untuk database baru `sumenep_cms` |
 | 6 · Chator AI | **Ditunda (keputusan pemilik proyek).** Widget tampil dengan status "sedang dalam pengembangan", tanpa integrasi |
 | 7 · SEO & performa | Sebagian: metadata, canonical, `noindex` saat staging, robots.txt |
@@ -30,6 +30,7 @@ npm run dev                # http://localhost:3200
 npm run build && npm start # produksi lokal di :3200
 npm run typecheck
 npm run qa:shots           # screenshot + uji responsif (server harus jalan)
+npm run qa:articles        # 3 template artikel × 9 lebar + interaksi
 ```
 
 `npm run qa:shots` memakai Chrome yang terpasang di komputer (`playwright-core`, tanpa mengunduh browser). Untuk setiap halaman dan lebar layar, skrip memeriksa:
@@ -59,11 +60,15 @@ src/
     brand/Logo           satu sumber logo (public/brand/*.svg)
     layout/              SiteHeader, MobileNavigation (drawer), SiteFooter
     home/                HeroArticle, FeaturedArticles, EditorialNote, LatestArticles
-    article/             ArticleRow, ArchiveView, Pagination, StaticPage
+    article/             templates (Standard/Feature/Spotlight), ArticleHeader, ArticleBody,
+                         ArticleHero, ArticleImage, PullQuote, ArticleTable, ArticleGallery,
+                         ArticleTimeline, ArticleInfographic, ArticleMap, ArticleVideo,
+                         ArticleTableOfContents, ReadingProgress, ShareArticle, ArticleLightbox,
+                         RelatedArticles, ArticleRow, ArchiveView, Pagination, StaticPage
     chator/              ChatorWidget (tombol), ChatorPanel (info mode pengembangan)
     ui/                  MediaImage, ArticleMeta, AuthorAvatar, SectionHeading
   content/               types (kontrak = calon koleksi CMS), sections, seed (konten contoh)
-  lib/                   content (adapter), site, format
+  lib/                   content (adapter), article-utils, site, format
 brand/source/            data sumber logo (hasil outline dan trace)
 scripts/                 build-brand, prepare-demo-media, shoot (QA)
 public/brand · public/demo · public/illustrations · public/og-default.png

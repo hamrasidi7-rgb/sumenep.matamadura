@@ -3,6 +3,7 @@ import "server-only";
 import { ARTICLES, AUTHORS, HOMEPAGE } from "@/content/seed";
 import { SECTIONS } from "@/content/sections";
 import type { Article, Author, EditorialNote, Section, SectionKind } from "@/content/types";
+import { withHeadingIds } from "@/lib/article-utils";
 
 // Content adapter. Today it reads the demo seed; in Tahap 5 each function is
 // re-implemented on top of the Payload Local API with the same signatures.
@@ -24,6 +25,7 @@ function toView(a: Article): ArticleView {
   const slug = a.rubrik ?? a.kanal;
   return {
     ...a,
+    body: withHeadingIds(a.body),
     author: AUTHORS.find((x) => x.slug === a.author) ?? FALLBACK_AUTHOR,
     section: SECTIONS.find((s) => s.kind === kind && s.slug === slug),
   };
@@ -134,4 +136,15 @@ export async function getHomepage(): Promise<HomepageData> {
 
 export async function getFeaturedSlugs(): Promise<readonly string[]> {
   return HOMEPAGE.featured;
+}
+
+/** Up to `limit` related articles: same kanal, then same rubrik, then latest. */
+export async function getRelatedArticles(article: ArticleView, limit = 3): Promise<ArticleView[]> {
+  const pool = [...ARTICLES].sort(byDateDesc).filter((a) => a.slug !== article.slug);
+  const score = (a: Article) => (a.kanal && a.kanal === article.kanal ? 2 : 0) + (a.rubrik && a.rubrik === article.rubrik ? 1 : 0);
+  return pool
+    .map((a, i) => ({ a, s: score(a), i }))
+    .sort((x, y) => y.s - x.s || x.i - y.i)
+    .slice(0, limit)
+    .map(({ a }) => toView(a));
 }

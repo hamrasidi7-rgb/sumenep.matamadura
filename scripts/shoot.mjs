@@ -66,12 +66,19 @@ async function checks(page, label) {
   const r = await page.evaluate(() => {
     const vw = document.documentElement.clientWidth;
     const overflow = document.documentElement.scrollWidth - vw;
+    // Content inside its own scroll/clip container (e.g. a wide table) cannot widen the page.
+    const clipped = (el) => {
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        if (["auto", "scroll", "hidden", "clip"].includes(getComputedStyle(p).overflowX)) return true;
+      }
+      return false;
+    };
     const offenders = [...document.querySelectorAll("body *")]
       .filter((el) => {
         const b = el.getBoundingClientRect();
         if (!b.width || getComputedStyle(el).position === "fixed") return false;
         if (el.closest("dialog:not([open])")) return false;
-        return b.right > vw + 1 || b.left < -1;
+        return (b.right > vw + 1 || b.left < -1) && !clipped(el);
       })
       .slice(0, 5)
       .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 60)}`);

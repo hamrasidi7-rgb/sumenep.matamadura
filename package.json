@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "qa:shots": "node scripts/shoot.mjs",
     "brand:build": "node scripts/build-brand.mjs",
-    "demo:media": "node scripts/prepare-demo-media.mjs"
+    "demo:media": "node scripts/prepare-demo-media.mjs",
+    "qa:articles": "node scripts/qa-articles.mjs",
+    "qa:export": "node scripts/export-screenshots.mjs"
   },
   "engines": {
     "node": ">=20.9"

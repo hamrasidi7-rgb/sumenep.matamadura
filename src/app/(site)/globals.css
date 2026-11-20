@@ -26,6 +26,13 @@
     -webkit-text-size-adjust: 100%;
     text-rendering: optimizeLegibility;
   }
+  /* Smooth in-page jumps (table of contents). Next.js restores instant scroll
+     on route changes because <html> carries data-scroll-behavior="smooth". */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
   body {
     @apply bg-paper text-ink font-sans antialiased;
     overflow-x: clip;
@@ -72,6 +79,10 @@
   }
   .link-underline:hover {
     @apply decoration-current;
+  }
+  /* Links inside article text: always visibly underlined (not colour alone). */
+  .article-link {
+    @apply text-ink underline decoration-brand/60 decoration-[0.08em] underline-offset-[0.18em] transition-colors hover:text-brand-deep hover:decoration-brand;
   }
   .tap {
     @apply inline-flex min-h-11 min-w-11 items-center justify-center;
@@ -150,6 +161,17 @@ dialog.chator[open] {
   dialog.chator::backdrop {
     background: rgb(17 24 39 / 0.18);
   }
+}
+
+/* Image lightbox: full screen, dark. */
+dialog.lightbox {
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  background: rgb(17 24 39 / 0.96);
+}
+dialog.lightbox::backdrop {
+  background: rgb(17 24 39 / 0.6);
 }
 
 @media (prefers-reduced-motion: reduce) {

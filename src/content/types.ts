@@ -1,7 +1,6 @@
-// Content contracts. These mirror the Payload collections planned for Tahap 5
-// (Articles, Sections, Authors, Media, Homepage global), so swapping the seed
-// adapter in src/lib/content.ts for the Payload Local API does not touch any
-// component.
+// Content contracts shared by the CMS adapter and the frontend. The CMS
+// (Payload + Lexical) output is normalised into these shapes in
+// src/lib/content.ts, so templates never depend on the editor's JSON format.
 
 export type SectionKind = "kanal" | "rubrik";
 
@@ -19,6 +18,8 @@ export interface MediaAsset {
   alt: string;
   caption?: string;
   credit?: string;
+  /** Largest available rendition, used by the lightbox. */
+  fullSrc?: string;
 }
 
 export interface Author {
@@ -31,11 +32,53 @@ export interface Author {
 
 export type ArticleTemplate = "standard" | "feature" | "spotlight";
 
+/** Inline run of text with formatting, or a hard line break. */
+export type Inline =
+  | {
+      text: string;
+      bold?: boolean;
+      italic?: boolean;
+      underline?: boolean;
+      strike?: boolean;
+      code?: boolean;
+      /** Already validated: http(s), mailto, tel or a site-relative path. */
+      href?: string;
+      newTab?: boolean;
+    }
+  | { lineBreak: true };
+
+export interface ListItem {
+  content: Inline[];
+  children?: ListItem[];
+}
+
+export interface TimelineEvent {
+  date: string;
+  title: string;
+  description?: string;
+}
+
 export type ArticleBlock =
-  | { type: "paragraph"; text: string }
-  | { type: "heading"; level: 2 | 3; text: string; id?: string }
-  | { type: "quote"; text: string; cite?: string }
-  | { type: "image"; image: MediaAsset };
+  | { type: "paragraph"; content: Inline[] }
+  | { type: "heading"; level: 2 | 3 | 4; content: Inline[]; id: string }
+  | { type: "quote"; content: Inline[] }
+  | { type: "list"; ordered: boolean; items: ListItem[] }
+  | { type: "image"; image: MediaAsset; size?: "column" | "wide" }
+  | { type: "pullQuote"; text: string; attribution?: string }
+  | { type: "gallery"; title?: string; images: MediaAsset[] }
+  | { type: "infographic"; title: string; image: MediaAsset; source?: string; dataDate?: string; note?: string }
+  | { type: "timeline"; title?: string; events: TimelineEvent[] }
+  | { type: "table"; caption?: string; header: string[]; rows: string[][]; source?: string }
+  | { type: "map"; title?: string; latitude: number; longitude: number; zoom: number; marker?: boolean; caption?: string }
+  | { type: "video"; provider: "youtube" | "vimeo"; videoId: string; title: string; caption?: string }
+  | { type: "divider" };
+
+export interface ArticleSeo {
+  title?: string;
+  description?: string;
+  canonicalUrl?: string;
+  ogImage?: MediaAsset;
+}
 
 export interface Article {
   slug: string;
@@ -47,11 +90,15 @@ export interface Article {
   rubrik?: string;
   author: string;
   publishedAt: string; // ISO 8601
+  updatedAt?: string;
   readingMinutes: number;
   template: ArticleTemplate;
   hero: MediaAsset;
   body: ArticleBlock[];
+  /** Optional gallery shown after the body. */
+  gallery?: MediaAsset[];
   tags: string[];
+  seo?: ArticleSeo;
   /** true = konten contoh desain, bukan berita faktual. */
   isDemo?: boolean;
 }

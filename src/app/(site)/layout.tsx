@@ -55,7 +55,7 @@ export const viewport: Viewport = {
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const sections = await getSections();
   return (
-    <html lang="id" className={`${newsreader.variable} ${lora.variable} ${inter.variable}`}>
+    <html lang="id" data-scroll-behavior="smooth" className={`${newsreader.variable} ${lora.variable} ${inter.variable}`}>
       <body>
         <a
           href="#konten"
