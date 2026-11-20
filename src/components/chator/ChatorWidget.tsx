@@ -49,7 +49,7 @@ export function ChatorWidget() {
           setOpen(true);
         }}
         aria-haspopup="dialog"
-        aria-label="Buka Chator AI, asisten pengetahuan Sumenep"
+        aria-label="Buka Chator AI (sedang dalam pengembangan)"
         data-hidden={hidden || undefined}
         className="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex size-[4.25rem] flex-col items-center justify-center gap-0.5 rounded-full bg-brand text-white shadow-[var(--shadow-float)] ring-2 ring-white/70 transition-[transform,opacity,background-color] duration-200 hover:bg-brand-deep data-hidden:pointer-events-none data-hidden:translate-y-[calc(100%+2rem)] data-hidden:opacity-0 motion-reduce:transition-none md:size-[4.5rem] lg:right-[calc(1.5rem+env(safe-area-inset-right))] lg:bottom-6 lg:data-hidden:pointer-events-auto lg:data-hidden:translate-y-0 lg:data-hidden:opacity-100"
       >

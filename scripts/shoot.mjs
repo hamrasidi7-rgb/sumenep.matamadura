@@ -141,15 +141,20 @@ for (const w of [390, 1440]) {
   await chat.waitFor({ state: "visible" });
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(OUT, `chator-${tag}-${w}.png`) });
-  await page.locator("#chator-input").fill("Berapa jumlah pulau di Sumenep?");
-  await page.getByRole("button", { name: "Kirim pertanyaan" }).click();
-  await page.waitForTimeout(900);
-  const notice = await chat.locator("ol li").last().innerText();
-  if (!/belum tersambung/i.test(notice)) fail(`chator @${w}: expected honest "belum tersambung" notice, got: ${notice.slice(0, 120)}`);
-  await page.screenshot({ path: path.join(OUT, `chator-${tag}-${w}-reply.png`) });
+  // Development mode: the notice is shown and there is NO way to "chat".
+  const chatText = await chat.innerText();
+  if (!chatText.includes("Chator AI sedang dalam pengembangan.")) fail(`chator @${w}: development notice missing`);
+  const inputs = await chat.locator("input, textarea, [contenteditable='true']").count();
+  if (inputs !== 0) fail(`chator @${w}: panel must not contain a question input (found ${inputs})`);
+  await checks(page, `chator @${w}`);
   await page.getByRole("button", { name: "Tutup Chator AI" }).click();
   await page.waitForTimeout(300);
   if (await chat.evaluate((d) => d.open)) fail(`chator @${w}: close button did not close it`);
+  await page.getByRole("button", { name: /Buka Chator AI/ }).click();
+  await page.waitForTimeout(300);
+  await chat.getByRole("button", { name: "Tutup", exact: true }).click();
+  await page.waitForTimeout(300);
+  if (await chat.evaluate((d) => d.open)) fail(`chator @${w}: "Tutup" button did not close it`);
   if (errors.length) fail(`interactions @${w}: console errors: ${errors.join(" | ").slice(0, 300)}`);
   await ctx.close();
   console.log("✓ interactions", w);
