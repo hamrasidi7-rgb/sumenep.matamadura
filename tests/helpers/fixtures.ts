@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import type { PrismaClient, SectionKind } from "@prisma/client";
 
@@ -6,9 +6,15 @@ import { hashPassword } from "@/server/auth/password";
 
 export const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
-/** A valid test password (≥ 15 characters). Test databases only. */
-export const TEST_PASSWORD = "uji garam kalianget 2026";
-export const TEST_PASSWORD_2 = "uji pantai lombang 2027!";
+/**
+ * Valid test passwords (≥ 15 characters), random for every test run: no
+ * password — not even a test one — is written in the repository.
+ */
+export const TEST_PASSWORD = `uji ${randomBytes(12).toString("base64url")} satu`;
+export const TEST_PASSWORD_2 = `uji ${randomBytes(12).toString("base64url")} dua`;
+
+/** For regular expressions that look for a password in output. */
+export const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function makeAuthor(db: PrismaClient, slug = "redaksi") {
   return db.author.create({ data: { slug, name: "Redaksi", role: "Redaksi" } });

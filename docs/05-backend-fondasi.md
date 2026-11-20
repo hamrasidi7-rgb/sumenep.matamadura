@@ -254,12 +254,14 @@ Hasil 21 November 2026: **77 tes lulus, 0 gagal** (16 unit, 61 database). Build 
 | Hanya role ADMIN, hanya satu Admin | **Selesai** di database dan kode. Tidak ada kolom role dan tidak ada tabel pengguna lain |
 | Activity Log tidak bisa diubah atau dihapus lewat aplikasi | **Selesai**: trigger + hak akses, teruji |
 | Bootstrap dan pemulihan CLI, cabut semua sesi | **Selesai** |
-| Zod | **Selesai** untuk CLI. Dipakai ulang di Server Actions dan Route Handlers |
-| Login, rate limiting per IP, kunci sementara setelah 5 gagal | Struktur database siap (`login_attempt`, `failed_login_count`, `locked_until`). Logika: **Fase 3** |
-| Sesi 8 jam, cookie httpOnly + Secure, pemeriksaan server-side | Struktur dan batas 8 jam di database siap. Cookie `__Host-` dan guard: **Fase 3** |
-| Proteksi CSRF | **Fase 3**: Server Actions memeriksa Origin bawaan Next.js, ditambah pemeriksaan Origin pada Route Handler upload |
+| Zod | **Selesai**: CLI (Fase 2), login, ganti password, dan id sesi di Server Actions (Fase 3) |
+| Login, rate limiting per IP, kunci sementara setelah 5 gagal | **Selesai di Fase 3**: lihat [08-autentikasi-admin.md](08-autentikasi-admin.md) |
+| Sesi 8 jam, cookie httpOnly + Secure, pemeriksaan server-side | **Selesai di Fase 3**: cookie `__Host-`, `requireAdmin()`, `proxy.ts` |
+| Proteksi CSRF | **Selesai di Fase 3**: Origin wajib di proxy, Server Action, dan Route Handler |
 
 ## 11. Rekomendasi Fase 3 (Keamanan dan login)
+
+> Sudah dikerjakan di Fase 3, kecuali poin 4 (batas mutlak 24 jam; menunggu keputusan) dan poin 8 (dilakukan saat backend digabung ke `main`). Hasilnya: [08-autentikasi-admin.md](08-autentikasi-admin.md).
 
 1. **Login (Server Action + Zod).** Verifikasi scrypt. Jalankan hash palsu untuk email yang tidak dikenal, supaya waktu respons tidak membocorkan email Admin. Pesan gagal seragam. `needsRehash` untuk menaikkan parameter.
 2. **Pembatasan per IP** dari `login_attempt` (usulan: 10 gagal per 15 menit). Kunci akun setelah 5 gagal beruntun selama 15 menit. Batasi juga jumlah hash scrypt yang berjalan bersamaan, karena tiap hash memakan sekitar 128 MiB.

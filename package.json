@@ -28,7 +28,8 @@
     "admin:recover": "tsx scripts/admin/recover.ts",
     "test": "npm run test:unit && npm run test:db",
     "test:unit": "tsx --test \"tests/unit/*.test.ts\"",
-    "test:db": "tsx scripts/test/run-db-tests.ts"
+    "test:db": "tsx scripts/test/run-db-tests.ts",
+    "test:e2e": "tsx scripts/test/run-e2e-tests.ts"
   },
   "engines": {
     "node": ">=20.9.0"

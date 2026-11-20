@@ -14,7 +14,7 @@ import {
 import { verifyPassword } from "@/server/auth/password";
 
 import { connect, resetData, runScript } from "../helpers/db";
-import { insertAdmin, insertSession, TEST_PASSWORD, TEST_PASSWORD_2 } from "../helpers/fixtures";
+import { escapeRegExp, insertAdmin, insertSession, TEST_PASSWORD, TEST_PASSWORD_2 } from "../helpers/fixtures";
 
 const { owner, app, close } = connect();
 after(close);
@@ -135,7 +135,7 @@ describe("npm run admin:recover (CLI)", () => {
     const run = runScript(script, ["reset-password", "--password-stdin", "--yes"], `${TEST_PASSWORD_2}\n`);
     assert.equal(run.status, 0, run.stderr);
     assert.match(run.stdout, /Sesi dicabut: 2/);
-    assert.doesNotMatch(run.stdout + run.stderr, /pantai lombang/, "password never echoed");
+    assert.doesNotMatch(run.stdout + run.stderr, new RegExp(escapeRegExp(TEST_PASSWORD_2)), "password never echoed");
     const admin = await owner.adminUser.findUniqueOrThrow({ where: { id: 1 } });
     assert.equal(await verifyPassword(TEST_PASSWORD_2, admin.passwordHash), true);
     assert.equal(admin.lockedUntil, null);

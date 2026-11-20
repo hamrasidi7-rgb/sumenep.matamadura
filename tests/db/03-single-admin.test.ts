@@ -5,7 +5,7 @@ import { AdminExistsError, bootstrapAdmin } from "@/server/admin/bootstrap";
 import { verifyPassword } from "@/server/auth/password";
 
 import { connect, rejects, resetData, runScript } from "../helpers/db";
-import { TEST_PASSWORD, TEST_PASSWORD_2 } from "../helpers/fixtures";
+import { escapeRegExp, TEST_PASSWORD, TEST_PASSWORD_2 } from "../helpers/fixtures";
 
 const { owner, app, close } = connect();
 after(close);
@@ -30,7 +30,7 @@ describe("bootstrap creates the first Admin", () => {
     assert.equal(log[0].actor, "CLI");
     assert.equal(log[0].adminId, 1);
     const text = JSON.stringify(log[0], (_, v) => (typeof v === "bigint" ? v.toString() : v));
-    assert.doesNotMatch(text, /scrypt|uji garam/, "no secret in the log");
+    assert.doesNotMatch(text, new RegExp(`scrypt|${escapeRegExp(TEST_PASSWORD)}`), "no secret in the log");
   });
 });
 
@@ -102,7 +102,7 @@ describe("npm run admin:bootstrap (CLI)", () => {
     const run = runScript(script, ["--email", "cli@sumenep.test", "--name", "Admin CLI", "--password-stdin"], `${TEST_PASSWORD}\n`);
     assert.equal(run.status, 0, run.stderr);
     assert.match(run.stdout, /Admin dibuat: cli@sumenep\.test/);
-    assert.doesNotMatch(run.stdout + run.stderr, /uji garam/, "password never echoed");
+    assert.doesNotMatch(run.stdout + run.stderr, new RegExp(escapeRegExp(TEST_PASSWORD)), "password never echoed");
     const row = await owner.adminUser.findUniqueOrThrow({ where: { id: 1 } });
     assert.equal(await verifyPassword(TEST_PASSWORD, row.passwordHash), true);
   });
