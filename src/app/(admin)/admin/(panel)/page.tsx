@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { activityLabel, formatWib } from "@/components/admin/format";
+import { stateCounts } from "@/server/articles/queries";
 import { requireAdmin } from "@/server/auth/next";
 import { getDb } from "@/server/db";
 
@@ -12,10 +13,11 @@ export default async function DashboardPage() {
   const session = await requireAdmin();
   const db = getDb();
   const since = new Date(Date.now() - 24 * 3600_000);
-  const [kanal, rubrik, articles, failedLogins, activity] = await Promise.all([
+  const [kanal, rubrik, counts, recent, failedLogins, activity] = await Promise.all([
     db.section.count({ where: { kind: "KANAL" } }),
     db.section.count({ where: { kind: "RUBRIK" } }),
-    db.article.count({ where: { deletedAt: null } }),
+    stateCounts(db),
+    db.article.findMany({ where: { deletedAt: null }, orderBy: { updatedAt: "desc" }, take: 5, select: { id: true, title: true, updatedAt: true } }),
     db.loginAttempt.count({ where: { success: false, createdAt: { gt: since } } }),
     db.activityLog.findMany({
       orderBy: { id: "desc" },
@@ -27,7 +29,7 @@ export default async function DashboardPage() {
   return (
     <>
       <AdminHeader adminName={session.admin.name} current="/admin" />
-      <main className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-10">
+      <main className="mx-auto max-w-6xl px-4 py-8 md:px-6 md:py-10">
         <h1 className="font-display text-[2rem] leading-tight font-semibold">Selamat datang, {session.admin.name}</h1>
         <p className="mt-1 text-sm text-muted">
           Masuk sebagai {session.admin.email}. Sesi berakhir otomatis setelah 8 jam tanpa aktivitas.
@@ -47,9 +49,15 @@ export default async function DashboardPage() {
               Konten
             </h2>
             <p className="mt-2 text-sm">
-              {kanal} kanal · {rubrik} rubrik · {articles} artikel
+              {counts.terbit} terbit · {counts.terjadwal} terjadwal · {counts.draf} draf
             </p>
-            <p className="mt-1 text-sm text-muted">Pengelolaan artikel tersedia di Fase 4.</p>
+            <p className="mt-1 text-sm text-muted">
+              {counts.arsip} arsip · {counts.sampah} di tempat sampah · {kanal} kanal · {rubrik} rubrik
+            </p>
+            <div className="mt-2 flex gap-3 text-sm font-semibold">
+              <Link href="/admin/artikel/baru" className="text-brand underline-offset-4 hover:underline">Tulis artikel</Link>
+              <Link href="/admin/artikel" className="text-brand underline-offset-4 hover:underline">Semua artikel →</Link>
+            </div>
           </section>
 
           <section className="admin-card" aria-labelledby="card-keamanan">
@@ -62,6 +70,20 @@ export default async function DashboardPage() {
             </Link>
           </section>
         </div>
+
+        {recent.length > 0 && (
+          <section className="admin-card mt-6" aria-labelledby="terakhir">
+            <h2 id="terakhir" className="font-display text-xl font-semibold">Terakhir disunting</h2>
+            <ul className="mt-3 divide-y divide-line">
+              {recent.map((a) => (
+                <li key={a.id} className="flex flex-col gap-0.5 py-2.5 text-sm sm:flex-row sm:justify-between sm:gap-4">
+                  <Link href={`/admin/artikel/${a.id}`} className="font-semibold hover:text-brand">{a.title}</Link>
+                  <span className="shrink-0 text-muted tabular-nums">{formatWib(a.updatedAt)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="admin-card mt-6" aria-labelledby="aktivitas">
           <h2 id="aktivitas" className="font-display text-xl font-semibold">

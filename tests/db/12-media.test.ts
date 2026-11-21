@@ -1,0 +1,82 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { after, before, describe, test } from "node:test";
+
+import sharp from "sharp";
+
+import { connect, resetData } from "../helpers/db";
+import { insertAdmin } from "../helpers/fixtures";
+
+// Upload pipeline (adapted from Busacare's sharp upload). Files go to a
+// temporary MEDIA_ROOT for this test file only.
+
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "sumenep-media-"));
+process.env.MEDIA_ROOT = root;
+
+const { owner, app, close } = connect();
+const actor = { adminId: 1 };
+let service: typeof import("@/server/media/service");
+let storage: typeof import("@/server/media/storage");
+
+before(async () => {
+  service = await import("@/server/media/service");
+  storage = await import("@/server/media/storage");
+  await resetData(owner);
+  await insertAdmin(owner);
+});
+after(async () => {
+  await close();
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+const jpegWithExif = () =>
+  sharp({ create: { width: 3000, height: 2000, channels: 3, background: { r: 166, g: 27, b: 43 } } })
+    .jpeg()
+    .withMetadata({ orientation: 6, exif: { IFD0: { Copyright: "Uji", Artist: "Kamera uji" } } })
+    .toBuffer();
+
+describe("image upload", () => {
+  test("stored as WebP, at most 2400 px, rotated by EXIF, metadata removed, deduplicated", async () => {
+    const bytes = await jpegWithExif();
+    const first = await service.uploadImage(app, { name: "laut.jpg", bytes }, { alt: "Laut merah", caption: "Uji", credit: "Foto: Redaksi" }, actor);
+    assert.equal(first.duplicate, false);
+    assert.match(first.media.src, /^\/media\/\d{4}\/\d{2}\/[0-9a-f]{16}\.webp$/);
+    // EXIF orientation 6 = rotate 90°: 3000×2000 becomes portrait, then fits in 2400 px
+    assert.deepEqual([first.media.width, first.media.height], [1600, 2400]);
+
+    const key = first.media.src.replace(/^\/media\//, "");
+    const stored = await storage.getMediaStorage().get(key);
+    assert.ok(stored);
+    const meta = await sharp(stored).metadata();
+    assert.equal(meta.format, "webp");
+    assert.equal(meta.exif, undefined, "EXIF (camera, GPS) is stripped");
+
+    const again = await service.uploadImage(app, { name: "salinan.jpg", bytes }, { alt: "lagi" }, actor);
+    assert.equal(again.duplicate, true);
+    assert.equal(again.media.id, first.media.id);
+    assert.equal(await owner.media.count(), 1);
+    assert.equal(await owner.activityLog.count({ where: { action: "media.upload" } }), 1);
+  });
+
+  test("non-images and unsupported formats are refused from their bytes, whatever the name", async () => {
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+    await assert.rejects(service.uploadImage(app, { name: "foto.jpg", bytes: svg }, { alt: "x" }, actor), service.MediaError);
+    await assert.rejects(service.uploadImage(app, { name: "foto.png", bytes: Buffer.from("bukan gambar") }, { alt: "x" }, actor), service.MediaError);
+    await assert.rejects(service.uploadImage(app, { name: "kosong.png", bytes: Buffer.alloc(0) }, { alt: "x" }, actor), service.MediaError);
+  });
+
+  test("alt, caption and credit can be updated later", async () => {
+    const png = await sharp({ create: { width: 400, height: 300, channels: 3, background: "#ffffff" } }).png().toBuffer();
+    const { media } = await service.uploadImage(app, { name: "putih.png", bytes: png }, { alt: "" }, actor);
+    const updated = await service.updateMediaMeta(app, media.id, { alt: "Kertas putih", caption: "Caption", credit: "Foto: Uji" }, actor);
+    assert.deepEqual([updated.alt, updated.caption, updated.credit], ["Kertas putih", "Caption", "Foto: Uji"]);
+  });
+
+  test("media keys are strictly checked (no path traversal)", () => {
+    for (const bad of ["../../etc/passwd", "2026/11/../../x.webp", "2026/11/ABC.webp", "2026/11/0123456789abcdef.svg"]) {
+      assert.throws(() => storage.assertMediaKey(bad), bad);
+    }
+  });
+});

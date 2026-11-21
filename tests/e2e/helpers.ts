@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomInt } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -28,9 +29,14 @@ export const owner = createPrismaClient(requireTestUrl("DIRECT_URL"), { max: 2 }
 /** Runtime-role connection, used to mint sessions exactly as the login does. */
 export const app = createPrismaClient(requireTestUrl("DATABASE_URL"), { max: 2 });
 
+// Every tests/e2e file runs in its own process, but the database (and so the
+// per-IP failure counters) lives for the whole run. A random prefix per process
+// in the IPv6 documentation range (2001:db8::/32) keeps the files apart: an IP
+// that 03-limits blocked is never handed out again by a later file.
+const ipPrefix = `2001:db8:${randomInt(0x1000, 0x10000).toString(16)}:${randomInt(0x1000, 0x10000).toString(16)}`;
 let ipCounter = 0;
 /** A fresh documentation-range IP, so tests never share a rate-limit bucket by accident. */
-export const nextIp = () => `198.51.100.${(ipCounter = (ipCounter % 250) + 1)}`;
+export const nextIp = () => `${ipPrefix}::${(++ipCounter).toString(16)}`;
 
 /** Logs in through the same code as the form and returns the raw cookie value. */
 export async function mintSession(password: string = E2E_ADMIN.password): Promise<string> {
@@ -153,7 +159,11 @@ export async function screenshot(page: Page, name: string): Promise<void> {
   const dir = process.env.E2E_SCREENSHOT_DIR;
   if (!dir) return;
   fs.mkdirSync(dir, { recursive: true });
-  await page.evaluate(() => document.fonts.ready);
+  // From the top: a full-page capture of a scrolled page draws sticky bars mid-page.
+  await page.evaluate(async () => {
+    window.scrollTo(0, 0);
+    await document.fonts.ready;
+  });
   await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage: true });
 }
 

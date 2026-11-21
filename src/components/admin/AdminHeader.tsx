@@ -8,13 +8,14 @@ import { SubmitButton } from "./SubmitButton";
 
 const NAV = [
   { href: "/admin", label: "Dashboard" },
+  { href: "/admin/artikel", label: "Artikel" },
   { href: "/admin/akun", label: "Akun & Keamanan" },
 ] as const;
 
 export function AdminHeader({ adminName, current }: { adminName: string; current: (typeof NAV)[number]["href"] }) {
   return (
     <header className="border-b border-line bg-paper">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3 md:px-6">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3 md:px-6">
         <Link href="/admin" className="flex items-center gap-3" aria-label="Dashboard CMS">
           <Logo variant="sumenep-matamadura-horizontal" eager alt="" className="h-auto w-40 md:w-48" />
           <span className="rounded bg-ink px-1.5 py-0.5 text-[0.6875rem] font-semibold tracking-wider text-white uppercase">CMS</span>

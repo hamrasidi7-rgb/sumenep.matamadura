@@ -15,7 +15,7 @@ Aplikasi ini berdiri sendiri. Ia tidak mengubah WordPress `matamaduranews.com`, 
 | 2 · Design system & logo | Selesai: [docs/02-design-system.md](docs/02-design-system.md) |
 | 3 · Homepage responsif | Selesai. Lolos QA otomatis pada 12 lebar layar (360–1920 px) |
 | 4 · Pengalaman artikel | Selesai: tiga template (Standard, Feature, Spotlight), lihat [docs/03-template-artikel.md](docs/03-template-artikel.md) |
-| 5 · CMS | Fondasi backend (Fase 2): skema, migrasi, satu Admin, Activity Log append-only, CLI bootstrap/pemulihan, seed kanal/rubrik. Login dan keamanan Admin (Fase 3, branch `backend/fase-3-auth`): `/admin/login`, sesi database, cookie `__Host-`, penguncian, batas per IP, CSRF, dashboard awal; 142 tes ([docs/08-autentikasi-admin.md](docs/08-autentikasi-admin.md)). CMS artikel (Fase 4) menyusul. Rancangan cache/SEO: [docs/06-cache-seo.md](docs/06-cache-seo.md); layanan eksternal: [docs/07-layanan-eksternal.md](docs/07-layanan-eksternal.md) |
+| 5 · CMS | Fondasi backend (Fase 2): skema, migrasi, satu Admin, Activity Log append-only, CLI bootstrap/pemulihan, seed kanal/rubrik. Login dan keamanan Admin (Fase 3, branch `backend/fase-3-auth`): `/admin/login`, sesi database, cookie `__Host-`, penguncian, batas per IP, CSRF, dashboard awal; 142 tes ([docs/08-autentikasi-admin.md](docs/08-autentikasi-admin.md)). CMS artikel (Fase 4, branch `backend/fase-4-cms-artikel`): editor TipTap, simpan otomatis tanpa konflik, pratinjau, terbit/jadwal/arsip/tempat sampah, unggah gambar, SEO ([docs/09-cms-artikel.md](docs/09-cms-artikel.md)). Rancangan cache/SEO: [docs/06-cache-seo.md](docs/06-cache-seo.md); layanan eksternal: [docs/07-layanan-eksternal.md](docs/07-layanan-eksternal.md) |
 | 6 · Chator AI | **Ditunda (keputusan pemilik proyek).** Widget tampil dengan status "sedang dalam pengembangan", tanpa integrasi |
 | 7 · SEO & performa | Sebagian: metadata, canonical, `noindex` saat staging, robots.txt |
 | 8 · Uji & deploy | Persiapan deployment Hostinger: [docs/04-deployment-hostinger.md](docs/04-deployment-hostinger.md). Deployment menunggu langkah pemilik di hPanel |
@@ -62,7 +62,7 @@ npm run test:e2e           # build produksi + server :3301 + Chrome headless (da
 
 ```
 src/
-  app/(site)/            layout publik + rute (route group; admin CMS menyusul di Fase 3–4)
+  app/(site)/            layout publik + rute (route group terpisah dari CMS)
     page.tsx             beranda
     artikel/[slug]       artikel
     kanal/[slug]         5 kanal        rubrik/[slug]   5 rubrik
@@ -81,9 +81,14 @@ src/
     ui/                  MediaImage, ArticleMeta, AuthorAvatar, SectionHeading
   content/               types (kontrak = calon koleksi CMS), sections, seed (konten contoh)
   lib/                   content (adapter), article-utils, site, format
-  server/                backend: db (Prisma), auth/password, admin (bootstrap/recover), validation (Zod), activity-log, seed
+  app/(admin)/admin/     CMS: login, dashboard, akun, artikel (daftar + editor)
+  app/(site)/pratinjau/  pratinjau artikel (Admin saja, noindex)
+  components/admin/      header, editor (TipTap + blok), articles (formulir, SEO, status)
+  server/                backend: db (Prisma), auth, admin (bootstrap/recover), articles (sanitasi,
+                         blok, layanan, query, cache publik), media (unggah, penyimpanan),
+                         validation (Zod), activity-log, seed
 prisma/                  schema.prisma + migrations/
-tests/                   unit/ + db/ (lihat docs/05)
+tests/                   unit/ + db/ + e2e/ (lihat docs/05, 08, 09)
 brand/source/            data sumber logo (hasil outline dan trace)
 scripts/                 build-brand, prepare-demo-media, shoot (QA)
 public/brand · public/demo · public/illustrations · public/og-default.png
@@ -91,7 +96,7 @@ public/brand · public/demo · public/illustrations · public/og-default.png
 
 ## Konten
 
-Komponen hanya mengambil data lewat [src/lib/content.ts](src/lib/content.ts). Saat ini adapter membaca `src/content/seed.ts`. Isinya **konten contoh desain, bukan berita faktual**: tanpa angka, tanpa kutipan, dan setiap gambar diberi kredit "Ilustrasi demo". Footer dan halaman artikel menampilkan label tersebut. Saat integrasi CMS (Fase 8), fungsi-fungsi adapter membaca database lewat Prisma tanpa perlu mengubah komponen.
+Komponen hanya mengambil data lewat [src/lib/content.ts](src/lib/content.ts). Saat ini adapter membaca `src/content/seed.ts`. Isinya **konten contoh desain, bukan berita faktual**: tanpa angka, tanpa kutipan, dan setiap gambar diberi kredit "Ilustrasi demo". Footer dan halaman artikel menampilkan label tersebut. Saat integrasi CMS (Fase 8), fungsi-fungsi adapter membaca database lewat Prisma tanpa perlu mengubah komponen. Sejak Fase 4, dengan `CMS_PUBLIC_ARTICLES=on`, `/artikel/[slug]` sudah membaca artikel terbit dari CMS lebih dulu; daftar (beranda, kanal, rubrik) tetap konten contoh.
 
 ## Variabel lingkungan
 
@@ -101,6 +106,7 @@ Komponen hanya mengambil data lewat [src/lib/content.ts](src/lib/content.ts). Sa
 | `NEXT_PUBLIC_SITE_ENV` | Hanya `production` yang boleh diindeks. Nilai lain dianggap staging: `noindex` dan robots.txt menolak semua crawler |
 | `DATABASE_URL` · `DIRECT_URL` · `DB_APP_ROLE` | Database CMS (role runtime · role pemilik untuk migrasi/CLI · nama role runtime). Development: dibuat otomatis oleh `npm run db:setup`. Rincian: [docs/05-backend-fondasi.md](docs/05-backend-fondasi.md) |
 | `ADMIN_ALLOWED_HOSTS` · `TRUSTED_PROXY_COUNT` · `CLIENT_IP_HEADER` | Opsional, untuk CMS di balik proxy: host tambahan untuk pemeriksaan Origin, dan cara membaca IP klien untuk batas login per IP. Rincian: [docs/08-autentikasi-admin.md](docs/08-autentikasi-admin.md) |
+| `CMS_PUBLIC_ARTICLES` · `CMS_CACHE_SECONDS` · `MEDIA_ROOT` | `on` = `/artikel/[slug]` menampilkan artikel terbit dari CMS · lama cache data artikel publik (detik) · folder gambar unggahan. Rincian: [docs/09-cms-artikel.md](docs/09-cms-artikel.md) |
 
 **Chator AI** sedang dalam pengembangan. Integrasi dengan MataGen.ai menjadi proyek terpisah. Untuk saat ini tidak ada API, kunci, atau proxy AI di aplikasi ini. Panelnya hanya menjelaskan rencana fitur, tanpa kolom pertanyaan dan tanpa jawaban otomatis.
 

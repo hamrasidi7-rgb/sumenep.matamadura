@@ -37,11 +37,18 @@
   "dependencies": {
     "@prisma/adapter-pg": "6.19.3",
     "@prisma/client": "6.19.3",
+    "@tiptap/core": "2.27.3",
+    "@tiptap/extension-link": "2.27.3",
+    "@tiptap/extension-underline": "2.27.3",
+    "@tiptap/pm": "2.27.3",
+    "@tiptap/react": "2.27.3",
+    "@tiptap/starter-kit": "2.27.3",
     "lucide-react": "1.66.0",
     "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "server-only": "0.0.1",
+    "sharp": "0.35.5",
     "zod": "4.6.7"
   },
   "devDependencies": {

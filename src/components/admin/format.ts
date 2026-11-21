@@ -56,6 +56,19 @@ const ACTIONS: Record<string, string> = {
   "admin.recover.unlock": "Penguncian dibuka (CLI)",
   "admin.recover.email_changed": "Email login diubah (CLI)",
   "system.seed": "Data awal diisi",
+  "article.create": "Artikel dibuat",
+  "article.save": "Draf disimpan",
+  "article.update": "Artikel terbit diperbarui",
+  "article.publish": "Artikel diterbitkan",
+  "article.schedule": "Artikel dijadwalkan",
+  "article.unpublish": "Artikel ditarik dari publikasi",
+  "article.archive": "Artikel diarsipkan",
+  "article.unarchive": "Artikel dikembalikan dari arsip",
+  "article.trash": "Artikel ke tempat sampah",
+  "article.restore": "Artikel dipulihkan",
+  "article.delete": "Artikel dihapus permanen",
+  "media.upload": "Gambar diunggah",
+  "media.update": "Keterangan gambar diubah",
 };
 
 export function activityLabel(action: string): string {
