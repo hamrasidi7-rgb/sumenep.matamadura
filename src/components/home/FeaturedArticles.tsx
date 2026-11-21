@@ -7,8 +7,10 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import type { ArticleView } from "@/lib/content";
 
 /**
- * Tulisan Pilihan — a vertical list (thumbnail 34% · text 66%) on phones and
- * tablets; three list columns on desktop. Titles clamp at three lines.
+ * FeaturedArticles – a grid of editorial stories.
+ * Desktop: three‑column grid, each item with a 16:9 hero image on top.
+ * Mobile: single column, image above headline.
+ * Uses the final design‑system tokens (primary red, off‑white bg, etc.).
  */
 export function FeaturedArticles({ articles }: { articles: ArticleView[] }) {
   if (articles.length === 0) return null;
@@ -16,40 +18,41 @@ export function FeaturedArticles({ articles }: { articles: ArticleView[] }) {
     <section aria-labelledby="tulisan-pilihan" className="container-site mt-8 md:mt-14 xl:mt-16">
       <SectionHeading id="tulisan-pilihan" title="Tulisan Pilihan" href="/pilihan" />
 
-      <ul className="mt-3 md:mt-5 xl:grid xl:grid-cols-3 xl:gap-x-8 xl:border-t xl:border-line xl:pt-6">
+      <ul className="mt-4 grid gap-8 md:grid-cols-2 xl:grid-cols-3">
         {articles.map((a) => {
           const href = `/artikel/${a.slug}`;
           return (
-            <li
-              key={a.slug}
-              className="group grid grid-cols-[34%_1fr] items-start gap-x-3.5 md:grid-cols-[30%_1fr] md:gap-x-6 xl:grid-cols-[42%_1fr] xl:gap-x-4"
-            >
-              <Link href={href} tabIndex={-1} aria-hidden className="block py-3 xl:py-0">
+            <li key={a.slug} className="border-b border-border pb-6 last:border-0">
+              <Link href={href} className="block" aria-hidden tabIndex={-1}>
                 <MediaImage
                   media={a.hero}
-                  ratio="3/2"
-                  sizes="(min-width: 1280px) 150px, (min-width: 768px) 30vw, 34vw"
+                  ratio="16/9"
+                  eager
+                  className="object-cover w-full h-full"
                 />
               </Link>
-              <div className="h-full border-b border-line py-3 group-last:border-b-0 xl:border-b-0 xl:py-0">
+              <div className="mt-3">
                 {a.section && (
-                  <Link
-                    href={sectionHref(a.section)}
-                    className="font-display link-underline text-[0.8125rem] leading-tight font-bold text-brand md:text-[0.9375rem]"
-                  >
+                  <Link href={sectionHref(a.section)}
+                    className="text-[var(--color-primary)] font-sans text-base font-medium tracking-[0.04em] link-underline">
                     {a.section.name}
                   </Link>
                 )}
-                <h3 className="font-display mt-0.5 line-clamp-3 text-[clamp(1.0625rem,4.6vw,1.1875rem)] leading-[1.22] font-bold tracking-[-0.005em] text-ink md:mt-1 md:text-[1.25rem] xl:text-[1.125rem]">
+                <h3
+                  className="font-display mt-1.5 text-[clamp(1.125rem,4vw,1.5rem)] leading-[1.05] font-bold tracking-[-0.018em] text-[var(--color-text-primary)]"
+                >
                   <Link href={href} className="hover:text-brand-deep">
                     {a.title}
                   </Link>
                 </h3>
+                <p className="mt-2 text-[var(--color-text-secondary)] font-sans text-base leading-[1.5]">
+                  {a.standfirst}
+                </p>
                 <ArticleMeta
                   publishedAt={a.publishedAt}
                   readingMinutes={a.readingMinutes}
                   compact
-                  className="mt-1.5 md:mt-2"
+                  className="mt-2"
                 />
               </div>
             </li>

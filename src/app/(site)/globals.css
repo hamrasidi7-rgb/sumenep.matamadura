@@ -4,6 +4,20 @@
    Satu sumber warna, tipografi, dan jarak. Breakpoint memakai bawaan Tailwind:
    md 48rem (768) = tablet · lg 64rem (1024) · xl 80rem (1280) = desktop.     */
 @theme {
+  /* Updated design tokens per FINAL DESIGN SYSTEM */
+  --color-primary: #A6192E; /* Mata Madura red */
+  --color-bg: #F5F2ED;       /* Page background */
+  --color-surface: #FFFFFF; /* Content surface */
+  --color-text-primary: #171717; /* Headlines */
+  --color-text-secondary: #555555; /* Descriptions */
+  --color-text-muted: #888888;    /* Metadata */
+  --color-border: #DEDAD4;        /* Divider lines */
+  --color-accent: #A6192E;        /* Accent (same as primary) */
+
+  --font-display: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
+  --font-serif: var(--font-lora), Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+
   --color-brand: #a61b2b;
   --color-brand-deep: #8a1523;
   --color-ink: #111827;
@@ -34,7 +48,7 @@
     }
   }
   body {
-    @apply bg-paper text-ink font-sans antialiased;
+    @apply bg-[var(--color-bg)] text-[var(--color-text-primary)] font-sans antialiased;
     overflow-x: clip;
   }
   main {

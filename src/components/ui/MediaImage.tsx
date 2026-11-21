@@ -10,14 +10,14 @@ import type { MediaAsset } from "@/content/types";
 export function MediaImage({
   media,
   ratio = "16/9",
-  sizes,
+  sizes = '100vw',
   eager = false,
   rounded = true,
   className = "",
 }: {
   media: MediaAsset;
   ratio?: string;
-  sizes: string;
+  sizes?: string;
   eager?: boolean;
   rounded?: boolean;
   className?: string;

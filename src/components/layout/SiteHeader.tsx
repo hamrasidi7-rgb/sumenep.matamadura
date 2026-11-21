@@ -1,23 +1,25 @@
-import { Search } from "lucide-react";
 import Link from "next/link";
+import { Search } from "lucide-react";
 
-import { Logo } from "@/components/brand/Logo";
 import type { Section } from "@/content/types";
 import { SITE } from "@/lib/site";
 
 import { MobileNavigation } from "./MobileNavigation";
 
 /**
- * One header for every breakpoint: search · centred logo · menu, tagline below,
- * thin rule. No horizontal category bar — categories live in the drawer.
- * The 1fr/auto/1fr grid keeps the logo optically centred whatever the side
- * controls measure.
+ * Editorial header for SUMENEP – Mata Madura.
+ * Reference: Logo Pertama Header.png
+ * - Search icon (left)
+ * - Centered serif logo SUMENEP with MATA MADURA subtitle & horizontal red rules
+ * - Hamburger menu (right)
+ * - Off-white background (#F5F2ED)
  */
 export function SiteHeader({ sections }: { sections: Section[] }) {
   return (
-    <header className="bg-paper">
+    <header className="border-b border-[#DEDAD4] bg-[#F5F2ED]">
       <div className="container-site">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center pt-3 md:pt-6 xl:pt-7">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center py-3.5 md:py-5 xl:py-6">
+          {/* Search icon (left) */}
           <Link
             href="/cari"
             className="tap -ml-2.5 gap-2 justify-self-start rounded-full px-2.5 text-ink hover:text-brand"
@@ -27,19 +29,34 @@ export function SiteHeader({ sections }: { sections: Section[] }) {
             <span className="hidden font-sans text-sm font-medium lg:inline">Cari</span>
           </Link>
 
-          <Link href="/" className="block justify-self-center" aria-label={`${SITE.name} — Beranda`}>
-            <Logo eager alt="" className="h-auto w-[10.5rem] md:w-[13.5rem] xl:w-[15.5rem]" />
+          {/* Centered logo */}
+          <Link
+            href="/"
+            className="group block justify-self-center py-1"
+            aria-label={`${SITE.name} — Beranda`}
+          >
+            <div className="flex flex-col items-center select-none text-center">
+              <span className="font-display text-[1.875rem] font-bold tracking-[0.18em] text-[#171717] uppercase leading-none sm:text-[2.25rem] md:text-[2.75rem] lg:text-[3.25rem] mr-[-0.18em]">
+                SUMENEP
+              </span>
+              <div className="mt-1 flex items-center justify-center gap-2 sm:mt-1.5 sm:gap-3 md:mt-2 md:gap-3.5">
+                <span className="h-px w-5 bg-[#A6192E] sm:w-8 md:w-11" aria-hidden="true" />
+                <span className="font-display text-[9px] font-semibold tracking-[0.25em] text-[#A6192E] uppercase leading-none sm:text-[11px] md:text-[13px] mr-[-0.25em]">
+                  MATA MADURA
+                </span>
+                <span className="h-px w-5 bg-[#A6192E] sm:w-8 md:w-11" aria-hidden="true" />
+              </div>
+            </div>
           </Link>
 
+          {/* Hamburger menu (right) */}
           <div className="justify-self-end">
             <MobileNavigation sections={sections} />
           </div>
         </div>
 
-        <p className="font-display mt-1.5 text-center text-[0.875rem] leading-snug text-ink md:mt-2.5 md:text-base xl:text-[1.0625rem]">
-          {SITE.tagline}
-        </p>
-        <div className="mt-3 border-b border-line md:mt-5" />
+        {/* Tagline for screen readers / SEO */}
+        <p className="sr-only">{SITE.tagline}</p>
       </div>
     </header>
   );

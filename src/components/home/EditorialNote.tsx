@@ -9,7 +9,7 @@ export function EditorialNote({ note }: { note: Note }) {
     <section aria-labelledby="catatan-sumenep" className="container-site mt-8 md:mt-14 xl:mt-16">
       <Link
         href={note.href}
-        className="group flex items-center gap-3 rounded-xl bg-blush px-3.5 py-3.5 transition-colors hover:bg-[#f4e5e0] md:gap-7 md:px-8 md:py-6 xl:px-10"
+        className="group flex items-center gap-3 bg-[var(--color-surface)] px-4 py-4 md:gap-5 md:px-6 md:py-5 xl:px-8 transition-colors hover:bg-[var(--color-bg)]"
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- decorative SVG */}
         <img
@@ -24,7 +24,7 @@ export function EditorialNote({ note }: { note: Note }) {
         <div className="min-w-0 flex-1">
           <h2
             id="catatan-sumenep"
-            className="font-display text-[1.3125rem] leading-tight font-bold text-brand italic md:text-[1.875rem] xl:text-[2.125rem]"
+            className="font-display text-[1.3125rem] leading-tight font-bold text-[var(--color-primary)] md:text-[1.875rem] xl:text-[2.125rem]"
           >
             {note.title}
           </h2>

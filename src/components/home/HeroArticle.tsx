@@ -17,7 +17,7 @@ export function HeroArticle({ article }: { article: ArticleView }) {
       <div className="lg:grid lg:grid-cols-12 lg:items-center lg:gap-10 xl:gap-14">
         <div className="lg:col-span-5">
           {article.section && (
-            <Link href={sectionHref(article.section)} className="label-section link-underline md:text-base">
+            <Link href={sectionHref(article.section)} className="text-[var(--color-primary)] font-sans text-base font-medium tracking-[0.04em] link-underline md:text-base">
               {article.section.name}
             </Link>
           )}
