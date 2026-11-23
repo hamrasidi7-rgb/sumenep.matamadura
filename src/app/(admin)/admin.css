@@ -44,3 +44,131 @@
     @apply rounded-lg border border-line bg-paper p-5 shadow-sm md:p-6;
   }
 }
+
+/* ── Fase 4: CMS artikel ──────────────────────────────────────────────── */
+@layer components {
+  .admin-icon-button {
+    @apply inline-flex size-10 items-center justify-center rounded-md text-ink hover:bg-warm;
+  }
+  .admin-tab {
+    @apply -mb-px border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-muted hover:text-ink;
+  }
+  .admin-tab-active {
+    @apply border-brand text-ink;
+  }
+  .admin-label {
+    @apply block text-sm font-semibold text-ink;
+  }
+  .admin-help {
+    @apply mt-1 text-xs leading-relaxed text-muted;
+  }
+  .admin-error {
+    @apply mt-1 text-xs text-brand-deep;
+  }
+  .admin-badge {
+    @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap;
+  }
+}
+
+/* The editable article body (TipTap/ProseMirror). Close to the public
+   typography, so the Admin sees roughly what readers will see. */
+.cms-prose {
+  min-height: 18rem;
+  padding: 1rem 1rem 4rem;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  line-height: 1.7;
+  color: var(--color-ink);
+  outline: none;
+  overflow-wrap: break-word; /* long links and words wrap instead of widening the page */
+}
+@media (min-width: 48rem) {
+  .cms-prose {
+    padding: 1.25rem 1.75rem 5rem;
+  }
+}
+.cms-prose > * + * {
+  margin-top: 0.85em;
+}
+.cms-prose h2,
+.cms-prose h3,
+.cms-prose h4 {
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 1.4em;
+}
+.cms-prose h2 {
+  font-size: 1.5rem;
+}
+.cms-prose h3 {
+  font-size: 1.25rem;
+}
+.cms-prose h4 {
+  font-size: 1.0625rem;
+  font-family: var(--font-sans);
+}
+.cms-prose ul {
+  list-style: disc;
+  padding-left: 1.4rem;
+}
+.cms-prose ol {
+  list-style: decimal;
+  padding-left: 1.4rem;
+}
+.cms-prose li > p {
+  margin: 0.15em 0;
+}
+.cms-prose blockquote {
+  border-left: 3px solid var(--color-brand);
+  padding-left: 1rem;
+  font-style: italic;
+}
+.cms-prose a {
+  color: var(--color-brand);
+  text-decoration: underline;
+}
+.cms-prose code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--color-warm);
+  padding: 0.1em 0.3em;
+  border-radius: 0.25rem;
+}
+.cms-prose hr {
+  border: 0;
+  border-top: 2px solid color-mix(in srgb, var(--color-brand) 40%, transparent);
+  width: 6rem;
+  margin: 2rem auto;
+}
+.cms-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+}
+.cms-prose th,
+.cms-prose td {
+  border: 1px solid var(--color-line);
+  padding: 0.4rem 0.6rem;
+  vertical-align: top;
+  text-align: left;
+  overflow-wrap: anywhere; /* lets a table shrink to a phone screen */
+}
+.cms-prose th {
+  background: var(--color-warm);
+  font-weight: 700;
+}
+.cms-prose th p,
+.cms-prose td p {
+  margin: 0;
+}
+.cms-prose .selectedCell {
+  background: var(--color-blush);
+}
+.cms-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--color-muted);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}

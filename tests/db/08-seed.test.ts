@@ -14,7 +14,7 @@ const ordered = () => owner.section.findMany({ orderBy: [{ kind: "asc" }, { sort
 
 describe("seed: kanal and rubrik", () => {
   test("first run creates the 5 kanal + 5 rubrik of the current site, in navigation order", async () => {
-    assert.deepEqual(await seedInitialData(owner), { sectionsCreated: 10, homepageRubricCreated: true });
+    assert.deepEqual(await seedInitialData(owner), { sectionsCreated: 10, homepageRubricCreated: true, authorsCreated: 1 });
     const rows = await ordered();
     const expected = (kind: "kanal" | "rubrik") =>
       SECTIONS.filter((s) => s.kind === kind).map((s, i) => ({
@@ -46,7 +46,7 @@ describe("seed: kanal and rubrik", () => {
     });
     await owner.homepageRubric.deleteMany();
     const before = await ordered();
-    assert.deepEqual(await seedInitialData(owner), { sectionsCreated: 0, homepageRubricCreated: false });
+    assert.deepEqual(await seedInitialData(owner), { sectionsCreated: 0, homepageRubricCreated: false, authorsCreated: 0 });
     assert.deepEqual(await ordered(), before);
     assert.equal(await owner.homepageRubric.count(), 0, "a band removed in the CMS stays removed");
     assert.equal(await owner.activityLog.count({ where: { action: "system.seed" } }), 1, "logged once, on the run that created data");

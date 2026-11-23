@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 
+import { AUTHORS } from "@/content/seed";
 import { SECTIONS } from "@/content/sections";
 import { logActivity } from "@/server/activity-log";
 import { sectionInputSchema } from "@/server/validation/common";
@@ -16,6 +17,7 @@ const CATATAN_ITEMS = 3;
 export interface SeedResult {
   sectionsCreated: number;
   homepageRubricCreated: boolean;
+  authorsCreated: number;
 }
 
 export async function seedInitialData(db: PrismaClient): Promise<SeedResult> {
@@ -53,19 +55,30 @@ export async function seedInitialData(db: PrismaClient): Promise<SeedResult> {
       homepageRubricCreated = true;
     }
 
+    // Editorial author profiles of the current site (Fase 4: at least "Redaksi",
+    // so the article editor always has a byline to choose). Never login accounts.
+    let authorsCreated = 0;
+    for (const author of AUTHORS) {
+      const exists = await tx.author.findUnique({ where: { slug: author.slug }, select: { id: true } });
+      if (!exists) {
+        await tx.author.create({ data: { slug: author.slug, name: author.name, role: author.role, bio: author.bio ?? null } });
+        authorsCreated++;
+      }
+    }
+
     // Normally created by the integrity_rules migration; kept here for safety.
     await tx.homepageSettings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
     await tx.siteSettings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
 
-    if (sectionsCreated > 0 || homepageRubricCreated) {
+    if (sectionsCreated > 0 || homepageRubricCreated || authorsCreated > 0) {
       await logActivity(tx, {
         actor: "SYSTEM",
         action: "system.seed",
         entityType: "section",
         summary: `Data awal: ${sectionsCreated} kanal/rubrik dibuat.`,
-        meta: { sectionsCreated, homepageRubricCreated },
+        meta: { sectionsCreated, homepageRubricCreated, authorsCreated },
       });
     }
-    return { sectionsCreated, homepageRubricCreated };
+    return { sectionsCreated, homepageRubricCreated, authorsCreated };
   });
 }

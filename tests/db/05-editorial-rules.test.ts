@@ -17,7 +17,7 @@ beforeEach(async () => {
   await resetData(owner);
   await seedInitialData(owner);
   const [author, hero, kanal, rubrik] = await Promise.all([
-    makeAuthor(app),
+    makeAuthor(app, "penulis-uji"),
     makeMedia(app),
     findSection(app, "KANAL", "ekonomi"),
     findSection(app, "RUBRIK", "catatan-sumenep"),

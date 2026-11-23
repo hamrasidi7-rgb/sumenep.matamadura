@@ -4,12 +4,21 @@ import { ARTICLES, AUTHORS, HOMEPAGE } from "@/content/seed";
 import { SECTIONS } from "@/content/sections";
 import type { Article, Author, EditorialNote, Section, SectionKind } from "@/content/types";
 import { withHeadingIds } from "@/lib/article-utils";
+import { cachedPublicArticle, cachedRedirectTarget, cachedRelated } from "@/server/articles/public";
 
 // Content adapter. Today it reads the demo seed; in Tahap 5 each function is
 // re-implemented on top of the Payload Local API with the same signatures.
 // Components import from here only — never from src/content/seed.ts.
 
 export const CONTENT_SOURCE: "seed" | "cms" = "seed";
+
+/**
+ * Fase 4: with CMS_PUBLIC_ARTICLES=on, /artikel/[slug] first looks for a
+ * PUBLISHED article in the CMS database (publish time reached, not archived,
+ * not in the trash) and falls back to the demo seed. Lists (homepage, kanal,
+ * rubrik, search) stay on the seed until the full integration in Fase 8.
+ */
+export const CMS_ARTICLES = process.env.CMS_PUBLIC_ARTICLES === "on";
 
 /** Article with relations populated (what Payload returns with depth ≥ 1). */
 export type ArticleView = Omit<Article, "author"> & {
@@ -68,8 +77,17 @@ export async function getAuthors(): Promise<Author[]> {
 }
 
 export async function getArticle(slug: string): Promise<ArticleView | null> {
+  if (CMS_ARTICLES) {
+    const fromCms = await cachedPublicArticle(slug);
+    if (fromCms) return fromCms;
+  }
   const a = ARTICLES.find((x) => x.slug === slug);
   return a ? toView(a) : null;
+}
+
+/** Current slug of a CMS article that used to live at `slug` (for a 301), if it is public. */
+export async function getArticleRedirect(slug: string): Promise<string | null> {
+  return CMS_ARTICLES ? cachedRedirectTarget(slug) : null;
 }
 
 export async function getAllArticleSlugs(): Promise<string[]> {
@@ -140,6 +158,9 @@ export async function getFeaturedSlugs(): Promise<readonly string[]> {
 
 /** Up to `limit` related articles: same kanal, then same rubrik, then latest. */
 export async function getRelatedArticles(article: ArticleView, limit = 3): Promise<ArticleView[]> {
+  if (CMS_ARTICLES && !ARTICLES.some((a) => a.slug === article.slug)) {
+    return cachedRelated(article.slug, article.kanal ?? null, article.rubrik ?? null, limit);
+  }
   const pool = [...ARTICLES].sort(byDateDesc).filter((a) => a.slug !== article.slug);
   const score = (a: Article) => (a.kanal && a.kanal === article.kanal ? 2 : 0) + (a.rubrik && a.rubrik === article.rubrik ? 1 : 0);
   return pool

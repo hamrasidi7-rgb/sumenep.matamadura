@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_TOKEN_PATTERN, sessionCookieName, sessionCookieOptions } from "@/server/auth/cookie";
 import { checkSameOrigin } from "@/server/auth/origin";
 
-// First line of defence for the CMS (/admin, /api/admin). It is deliberately
+// First line of defence for the CMS (/admin, /api/admin, /pratinjau). It is deliberately
 // cheap and never trusted alone: every page, Server Action and Route Handler
 // checks the session in the database again (src/server/auth/next.ts, api.ts).
 //
@@ -26,6 +26,8 @@ function contentSecurityPolicy(nonce: string): string {
     "img-src 'self' data: blob:",
     "font-src 'self'",
     "connect-src 'self'",
+    // Article previews show the same click-to-play embeds as the public site.
+    "frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.openstreetmap.org",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -80,5 +82,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*"],
+  matcher: ["/admin/:path*", "/api/admin/:path*", "/pratinjau/:path*"],
 };

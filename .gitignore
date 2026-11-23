@@ -13,9 +13,11 @@ next-env.d.ts
 # local PostgreSQL instance, database backups, CMS uploads
 .data/
 backups/
-media/
+# uploads (MEDIA_ROOT default) — root only, so src/**/media source code is tracked
+/media/
 
 # regenerable QA output
+e2e-server-*.log
 qa/shots/
 qa/lighthouse/*.html
 

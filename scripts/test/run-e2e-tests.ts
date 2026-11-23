@@ -2,7 +2,7 @@
 // (`next build --webpack` + `next start`) and a throw-away database.
 //
 //   npm run test:e2e [-- --skip-build] [-- --keep] [-- --port 3301]
-//                    [-- --env-test <path>] [-- --screenshots <dir>]
+//                    [-- --env-test <path>] [-- --screenshots <dir>] [-- --only <name>]
 //
 //   1. refuses unless .env.test points at a LOCAL database named *_test
 //   2. creates sumenep_cms_test_e2e_<random>, migrates it, applies grants,
@@ -13,6 +13,7 @@
 //   5. stops the server and drops the database it created (unless --keep)
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { parseArgs, parseEnv } from "node:util";
 
@@ -30,6 +31,7 @@ const { values } = parseArgs({
     port: { type: "string", default: "3301" },
     "env-test": { type: "string", default: ".env.test" },
     screenshots: { type: "string" },
+    only: { type: "string" }, // run only test files whose name contains this text
   },
 });
 
@@ -87,6 +89,7 @@ async function main(): Promise<number> {
   // Fresh test-only password for this run (also read by the tests through the environment).
   process.env.E2E_ADMIN_PASSWORD = generateTestPassword("admin");
 
+  const mediaRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sumenep-e2e-media-"));
   const admin = createPrismaClient(base.DIRECT_URL!, { max: 1 });
   let created = false;
   let server: ChildProcess | undefined;
@@ -121,6 +124,12 @@ async function main(): Promise<number> {
       if (build.status !== 0) throw new Error(`build gagal (exit ${build.status})`);
     }
 
+    // unstable_cache entries (public CMS data) are kept on disk in
+    // .next/cache/fetch-cache and outlive the server. Every run has a fresh
+    // database, so it must start with an empty data cache too — otherwise a
+    // redirect cached by the previous run is served (stale-while-revalidate).
+    fs.rmSync(path.resolve(".next/cache/fetch-cache"), { recursive: true, force: true });
+
     console.log(`\n▶ next start -p ${port}`);
     const { DIRECT_URL: _owner, ...serverEnv } = process.env; // the web server never gets owner credentials
     const log = fs.openSync(serverLog, "w");
@@ -131,6 +140,11 @@ async function main(): Promise<number> {
         NEXT_TELEMETRY_DISABLED: "1",
         DATABASE_URL: databaseUrl,
         TRUSTED_PROXY_COUNT: "1",
+        // Fase 4: CMS articles on /artikel/[slug], a short cache for the schedule test,
+        // and uploads in a throw-away folder.
+        CMS_PUBLIC_ARTICLES: "on",
+        CMS_CACHE_SECONDS: "2",
+        MEDIA_ROOT: mediaRoot,
       },
       stdio: ["ignore", log, log],
     });
@@ -138,7 +152,7 @@ async function main(): Promise<number> {
 
     const files = fs
       .readdirSync("tests/e2e")
-      .filter((f) => f.endsWith(".test.ts"))
+      .filter((f) => f.endsWith(".test.ts") && (!values.only || f.includes(values.only)))
       .sort()
       .map((f) => `tests/e2e/${f}`);
     console.log(`\n▶ Pengujian end-to-end (${files.length} file) pada ${baseUrl}`);
@@ -148,6 +162,7 @@ async function main(): Promise<number> {
         E2E_BASE_URL: baseUrl,
         DATABASE_URL: databaseUrl,
         DIRECT_URL: directUrl,
+        MEDIA_ROOT: mediaRoot, // tests that upload through the service write where the server reads
         E2E_SCREENSHOT_DIR: values.screenshots ? path.resolve(values.screenshots) : "",
       },
     });
@@ -165,6 +180,7 @@ async function main(): Promise<number> {
       console.log(`\n▶ Database uji sementara dihapus: ${runDb}`);
     }
     await admin.$disconnect();
+    fs.rmSync(mediaRoot, { recursive: true, force: true });
   }
 }
 
