@@ -45,7 +45,7 @@ export function grantStatements(appRole: string, schemaName: string): string[] {
   ];
 }
 
-const CHECKS: Array<[table: string, privilege: string, expected: boolean]> = [
+export const CHECKS: Array<[table: string, privilege: string, expected: boolean]> = [
   ["activity_log", "INSERT", true],
   ["activity_log", "SELECT", true],
   ["activity_log", "UPDATE", false],

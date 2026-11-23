@@ -52,10 +52,12 @@ Hasilnya disimpan di `qa/shots/` dan `qa/report.json`.
 npm run db:setup           # PostgreSQL 16 lokal terisolasi + .env/.env.test (password acak)
 npm run db:migrate:dev     # terapkan/buat migrasi, lalu hak akses
 npm run db:seed            # 5 kanal + 5 rubrik + band Catatan Sumenep
+npm run db:verify          # cek read-only: migrasi, constraint, trigger, satu Admin, hak role runtime
 npm run admin:bootstrap -- --email … --name "…"   # Admin pertama (satu-satunya)
 npm run admin:recover -- status                    # pemulihan: lihat docs/05
 npm test                   # tes unit + tes database (database sementara)
 npm run test:e2e           # build produksi + server :3301 + Chrome headless (database sementara)
+npm run prod:smoke         # cek read-only website live: halaman, keamanan admin, PostgreSQL, R2
 ```
 
 ## Struktur

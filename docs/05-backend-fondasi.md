@@ -148,6 +148,7 @@ Aturan kerja:
 | `npm run db:start` / `db:stop` / `db:status` | Menyalakan, mematikan, dan memeriksa server |
 | `npm run db:migrate:dev` | Menerapkan atau membuat migrasi di database dev |
 | `npm run db:seed` | Mengisi kanal, rubrik, dan band Catatan Sumenep |
+| `npm run db:verify` | Pemeriksaan read-only (transaksi `READ ONLY`, selalu di-rollback): migrasi, tabel, CHECK, trigger, satu Admin, atribut dan hak role runtime, UTC, TLS, data awal. Aman untuk production |
 
 Isolasi:
 - folder data sendiri di dalam proyek (`.data/`, diabaikan git);

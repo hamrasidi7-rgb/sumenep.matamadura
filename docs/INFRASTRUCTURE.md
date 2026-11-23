@@ -6,6 +6,14 @@ Status implementasi di branch **`release/fase-4-production`** (23 November 2026)
 - Integrasi **Fase 4 (CMS Artikel + TipTap + Media + Pratinjau)** dengan perbaikan **Fase 3** (tombol mata password `/admin/login`), konflik dependensi/`package-lock.json`, `postinstall: prisma generate`, serta adapter **Cloudflare R2 (`@aws-sdk/client-s3`)** sudah selesai di kode dan teruji.
 - Layanan eksternal produksi (**Neon PostgreSQL Launch Singapore**, bucket/token **Cloudflare R2**, serta panel/deploy **Hostinger Web Apps**) **belum aktif/belum dieksekusi** karena credential akun berada di tangan pemilik.
 
+### Status produksi teramati (24 November 2026, `npm run prod:smoke`)
+
+- `origin/main` = `e4e38bf` (sama dengan `release/fase-4-production`) dan **kode Fase 4 sudah berjalan di production**: tombol mata di `/admin/login` dan rute `/media/[...key]` sudah ada. Teramati: push ke `main` langsung ter-deploy (lihat §4).
+- **PostgreSQL belum terhubung:** `/api/admin/me` dengan token sesi acak menjawab `500` (seharusnya `401`). Login Admin belum bisa dipakai.
+- **Media R2 belum siap:** `/media/<key acak>` menjawab `500` (seharusnya `404`).
+- Beranda, halaman artikel seed, `robots.txt` (`Disallow: /`), proteksi `/admin`, penolakan lintas-origin, dan website induk normal.
+- Tindakan berikutnya ada di §8.4: semuanya memerlukan akun pemilik.
+
 ---
 
 ## 1. Arsitektur Production Final & Batasan Mutlak
@@ -32,7 +40,8 @@ Status implementasi di branch **`release/fase-4-production`** (23 November 2026)
 
 | Referensi | Isi & Status |
 | --- | --- |
-| `origin/main` & `main` (`f62ef97`) | Baseline production aktif saat ini (`/` homepage redesain + Fase 2–3 tanpa Fase 4 dan tanpa tombol mata login). |
+| `f62ef97` | Baseline production sebelum Fase 4 (homepage redesain + Fase 2–3, tanpa tombol mata login). Titik rollback, lihat §8.3. |
+| `origin/main` & `main` (`e4e38bf`) | **Sedang berjalan di production** sejak 24 November 2026: fast-forward ke `release/fase-4-production`. |
 | `backend/fase-4-cms-artikel` (`6f49299`) | Branch sumber CMS Artikel (TipTap, upload/crop `sharp`, pratinjau `/pratinjau/[id]`, `/media/[...key]`). |
 | `integrasi/cms-produksi` (`53d68a8`) | Hasil merge bersih Fase 4 ke `f62ef97` setelah konflik `package-lock.json` dibereskan. |
 | `release/fase-4-production` | **Branch rilis final Fase 4:** menggabungkan `53d68a8` + tombol mata login Fase 3 (`LoginForm.tsx` & `02-browser.test.ts`) + adapter R2 S3 + `docs/INFRASTRUCTURE.md` + `.env.example` + lockfile bersih. |
@@ -80,7 +89,7 @@ Status implementasi di branch **`release/fase-4-production`** (23 November 2026)
 ### Jalur Deployment Resmi di Hostinger
 
 1. **Git Deployment via hPanel (Jalur Utama):**
-   - Repository `hamrasidi7-rgb/sumenep.matamadura` **tidak memiliki** `.github/workflows/*` dan tidak memiliki repository webhook (`gh api .../hooks` = `[]`). Jangan berasumsi auto-deploy aktif.
+   - Repository `hamrasidi7-rgb/sumenep.matamadura` **tidak memiliki** `.github/workflows/*` dan tidak memiliki repository webhook (`gh api .../hooks` = `[]`). Namun teramati: setelah push ke `main` (`f62ef97` pada 21 November, `e4e38bf` pada 24 November) versi baru langsung tampil di production, jadi integrasi GitHub Hostinger kemungkinan aktif lewat GitHub App (tidak tampil sebagai webhook). **Perlakukan setiap push ke `main` sebagai deploy production.**
    - Hubungkan/arahkan Web App `sumenep.matamaduranews.com` di **hPanel → Websites → Web Apps** ke branch rilis yang disetujui (`release/fase-4-production`, atau setelah di-fast-forward ke `main`), lalu picu **Deploy** dari hPanel.
 2. **Hostinger API (`scripts/hostinger.mjs` lama di `main-backup-nov20`):**
    - Tidak wajib dipakai dan saat ini `.env.hostinger` (`HOSTINGER_API_TOKEN`) kosong.
@@ -100,10 +109,18 @@ Status implementasi di branch **`release/fase-4-production`** (23 November 2026)
   - Eksekusi aman (non-destruktif) dari mesin operator menggunakan file env sementara yang segera dihapus setelah selesai:
     ```bash
     npm run db:migrate -- --env-file .env.production.local --yes
-    npm run db:seed -- --env-file .env.production.local
+    npm run db:seed -- --env-file .env.production.local --yes
+    npm run db:verify -- --env-file .env.production.local
     npm run admin:bootstrap -- --env-file .env.production.local
+    npm run db:verify -- --env-file .env.production.local
     ```
-  - **Catatan Neon Timezone & Role:** jika role owner Neon tidak memiliki izin `ALTER DATABASE` atau `CREATEROLE`, buat role runtime melalui Neon Console/SQL lebih dulu lalu jalankan `ALTER ROLE <role> SET "TimeZone" TO 'UTC';` untuk role owner dan role runtime.
+  - **Role runtime wajib dibuat dengan SQL, bukan lewat Neon Console/CLI/API.** Role yang dibuat lewat Console otomatis menjadi anggota `neon_superuser` (termasuk `pg_write_all_data` dan `BYPASSRLS`), sehingga bisa menulis ke semua tabel dan hak minimum dari `grants.ts` tidak berarti. `db:migrate` dan `db:verify` akan gagal bila role seperti itu dipakai. Jalankan di **Neon Console → SQL Editor** sebagai role pemilik database (mis. `neondb_owner`), dengan password acak panjang yang langsung disimpan di password manager:
+    ```sql
+    CREATE ROLE sumenep_app LOGIN PASSWORD '<password-acak-panjang>';
+    ALTER ROLE sumenep_app SET "TimeZone" TO 'UTC';
+    ```
+    Hak per tabel diberikan oleh `npm run db:migrate` (memanggil `grants.ts`). Bila `ALTER DATABASE … SET "TimeZone"` ditolak, jalankan juga `ALTER ROLE <role-pemilik> SET "TimeZone" TO 'UTC';`.
+  - **`npm run db:verify`** (read-only, satu transaksi `READ ONLY` yang selalu di-`ROLLBACK`): memeriksa migrasi, 17 tabel, 42 `CHECK`, 7 trigger aktif, trigger append-only Activity Log, constraint satu Admin dan jumlah Admin, atribut serta keanggotaan role runtime, 13 hak per tabel, sesi UTC, `sslmode=verify-full`, dan data awal. Aman dijalankan ke production kapan saja.
 
 ---
 
@@ -148,13 +165,15 @@ Template lengkap tanpa secret ada di [`.env.example`](../.env.example).
 
 ### 8.1 Urutan Deployment ke Hostinger Singapore
 
-1. Siapkan database **Neon Launch Singapore** + runtime role dan bucket **Cloudflare R2** + API token S3 scoped ke bucket tersebut.
-2. Dari komputer operator, siapkan `.env.production.local` sementara lalu jalankan:
-   `npm run db:migrate -- --env-file .env.production.local --yes`, `npm run db:seed -- --env-file .env.production.local`, dan `npm run admin:bootstrap -- --env-file .env.production.local` (masukkan password Admin interaktif). Hapus `.env.production.local` setelah selesai.
-3. Di **hPanel → Websites → Web Apps → `sumenep.matamaduranews.com`**, catat Commit SHA aktif sebelum deploy, pastikan **Node.js `22.x`**, Install `npm ci`, Build `npm run build`, Start `npm start`, lalu isi seluruh Environment Variables produksi (`NEXT_PUBLIC_*`, `DATABASE_URL`, `MEDIA_DRIVER=s3`, `S3_*`, `CMS_PUBLIC_ARTICLES=on`, opsional `R2_PUBLIC_URL`).
-4. Hubungkan/arahkan deploy Web App SUMENEP ke branch **`release/fase-4-production`** (atau fast-forward ke `main` dan deploy `main`), lalu mulai build di hPanel.
+1. Siapkan database **Neon Launch Singapore** + runtime role **via SQL** (§5) dan bucket **Cloudflare R2** + API token S3 scoped ke bucket tersebut.
+2. Dari komputer operator, siapkan `.env.production.local` sementara (git-ignored) lalu jalankan urutan di §5: `db:migrate` → `db:seed` → `db:verify` → `admin:bootstrap` (password Admin diketik sendiri oleh pemilik di terminal, tidak pernah lewat chat) → `db:verify` (harus `0 gagal` dan "tepat 1 Admin"). Hapus `.env.production.local` setelah selesai.
+3. Di **hPanel → Websites → Web Apps → `sumenep.matamaduranews.com`**, catat Commit SHA aktif, pastikan **Node.js `22.x`**, Install `npm ci`, Build `npm run build`, Start `npm start`, lalu isi seluruh Environment Variables produksi (`NEXT_PUBLIC_*`, `DATABASE_URL`, `MEDIA_DRIVER=s3`, `S3_*`, `CMS_PUBLIC_ARTICLES=on`, opsional `R2_PUBLIC_URL`). **Jangan** isi `DIRECT_URL` di Hostinger.
+4. Kode Fase 4 sudah ada di `main` (`e4e38bf`), jadi tidak perlu push baru: cukup **Redeploy/Rebuild** dari hPanel agar Environment Variables terbaca (`NEXT_PUBLIC_*` dibaca saat build).
+5. Jalankan `npm run prod:smoke`: semua baris harus `[OK]`, terutama **PostgreSQL** (`401` untuk sesi acak) dan **Media (R2)** (`404` untuk objek acak). Lalu lanjutkan uji manual §8.2.
 
 ### 8.2 Checklist Smoke Test Pasca-Deployment
+
+`npm run prod:smoke` (read-only, tanpa login, tanpa menulis data) memeriksa otomatis beranda, `robots.txt`, header `/admin/login`, redirect `/admin`, `401` tanpa sesi, koneksi PostgreSQL, koneksi R2, `/artikel/<slug acak>`, penolakan `403` lintas-origin, dan website induk. Sisanya diuji manual oleh pemilik setelah login:
 
 - [ ] `https://sumenep.matamaduranews.com/` tampil normal (`200 OK`), navigasi desktop/mobile bekerja, dan `https://matamaduranews.com/` (WordPress) tetap normal (`200 OK`).
 - [ ] `https://sumenep.matamaduranews.com/robots.txt` tetap `Disallow: /` selama `NEXT_PUBLIC_SITE_ENV=staging`.
@@ -173,6 +192,6 @@ Template lengkap tanpa secret ada di [`.env.example`](../.env.example).
 
 ### 8.4 Tindakan Manual yang Masih Memerlukan Akses Pemilik
 
-1. Pembuatan/penyediaan project **Neon Launch Singapore**, connection string `DATABASE_URL` & `DIRECT_URL`, serta eksekusi interaktif `admin:bootstrap`.
+1. Pembuatan/penyediaan project **Neon Launch Singapore**, role runtime `sumenep_app` lewat SQL (§5), connection string `DATABASE_URL` & `DIRECT_URL`, serta eksekusi interaktif `admin:bootstrap`.
 2. Pembuatan bucket **Cloudflare R2** + API token S3 (serta pengaturan DNS/custom domain R2 jika memilih opsi `R2_PUBLIC_URL`).
 3. Pengisian Environment Variables produksi dan eksekusi/pemicuan Git Deploy Web App `sumenep.matamaduranews.com` di **hPanel Hostinger**.
