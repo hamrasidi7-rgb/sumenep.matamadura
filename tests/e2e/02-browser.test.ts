@@ -92,6 +92,64 @@ describe("login form", () => {
     await page.waitForURL(`${BASE}/admin/akun`);
     await context.close();
   });
+
+  test("password toggle button sits inside the input, toggles visibility without submitting on desktop and mobile", async () => {
+    for (const [label, viewport] of [
+      ["desktop", { width: 1440, height: 900 }],
+      ["mobile", { width: 390, height: 844 }],
+    ] as const) {
+      const context = await newContext(browser, viewport);
+      const page = await context.newPage();
+      let postCount = 0;
+      page.on("request", (req) => {
+        if (req.method() === "POST") postCount++;
+      });
+
+      await page.goto(`${BASE}/admin/login`);
+      const input = page.locator("#password");
+      const showBtn = page.getByRole("button", { name: "Tampilkan password" });
+      await showBtn.waitFor();
+
+      assert.equal(await input.getAttribute("type"), "password", `${label}: hidden by default`);
+      assert.equal(await showBtn.getAttribute("type"), "button", `${label}: never type=submit`);
+      assert.equal(await showBtn.getAttribute("aria-pressed"), "false");
+
+      const metrics = await page.evaluate(() => {
+        const inp = document.getElementById("password")!;
+        const btn = inp.parentElement!.querySelector("button")!;
+        const svg = btn.querySelector("svg")!;
+        const ir = inp.getBoundingClientRect();
+        const br = btn.getBoundingClientRect();
+        const sr = svg.getBoundingClientRect();
+        return {
+          inHorizontal: br.left >= ir.left && br.right <= ir.right + 1,
+          inVertical: br.top >= ir.top - 1 && br.bottom <= ir.bottom + 1,
+          centerDiffY: Math.abs(sr.top + sr.height / 2 - (ir.top + ir.height / 2)),
+          paddingRight: Number.parseFloat(getComputedStyle(inp).paddingRight),
+          overflow: document.documentElement.scrollWidth - window.innerWidth,
+        };
+      });
+      assert.equal(metrics.inHorizontal, true, `${label}: button horizontally inside input`);
+      assert.equal(metrics.inVertical, true, `${label}: button vertically inside input`);
+      assert.ok(metrics.centerDiffY <= 1.5, `${label}: icon vertically centered (diff=${metrics.centerDiffY})`);
+      assert.ok(metrics.paddingRight >= 40, `${label}: input right padding clears icon (${metrics.paddingRight}px)`);
+      assert.ok(metrics.overflow <= 1, `${label}: no horizontal overflow`);
+
+      await input.fill("contoh-sandi-rahasia");
+      await showBtn.click();
+      assert.equal(await input.getAttribute("type"), "text", `${label}: password visible after click`);
+      const hideBtn = page.getByRole("button", { name: "Sembunyikan password" });
+      await hideBtn.waitFor();
+      assert.equal(await hideBtn.getAttribute("aria-pressed"), "true");
+      assert.equal(postCount, 0, `${label}: showing password did not submit form`);
+      if (label === "desktop") await screenshot(page, "login-password-visible-1440");
+
+      await hideBtn.click();
+      assert.equal(await input.getAttribute("type"), "password", `${label}: password hidden again`);
+      assert.equal(postCount, 0, `${label}: hiding password did not submit form`);
+      await context.close();
+    }
+  });
 });
 
 describe("logout, sessions and password", () => {

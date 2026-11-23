@@ -1,5 +1,6 @@
 "use client";
 
+import { Eye, EyeOff } from "lucide-react";
 import { useActionState, useState } from "react";
 
 import { Notice } from "@/components/admin/Notice";
@@ -12,6 +13,7 @@ export function LoginForm({ next }: { next: string }) {
   // Controlled, so the email survives React's form reset after a failed attempt;
   // the password field stays uncontrolled and is cleared every time.
   const [email, setEmail] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const emailError = state.fieldErrors?.email;
   const passwordError = state.fieldErrors?.password;
 
@@ -52,17 +54,33 @@ export function LoginForm({ next }: { next: string }) {
         <label htmlFor="password" className="block text-sm font-semibold">
           Password
         </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          maxLength={256}
-          aria-invalid={passwordError ? true : undefined}
-          aria-describedby={passwordError ? "password-error" : undefined}
-          className="admin-input mt-1.5"
-        />
+        <div className="relative mt-1.5">
+          <input
+            id="password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            required
+            maxLength={256}
+            aria-invalid={passwordError ? true : undefined}
+            aria-describedby={passwordError ? "password-error" : undefined}
+            className="admin-input pr-11 [&::-ms-reveal]:hidden"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((visible) => !visible)}
+            aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+            aria-pressed={showPassword}
+            title={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-muted transition-colors hover:text-ink focus-visible:outline-offset-[-3px]"
+          >
+            {showPassword ? (
+              <EyeOff aria-hidden className="size-[1.125rem]" strokeWidth={2} />
+            ) : (
+              <Eye aria-hidden className="size-[1.125rem]" strokeWidth={2} />
+            )}
+          </button>
+        </div>
         {passwordError && (
           <p id="password-error" className="mt-1.5 text-sm text-brand-deep">
             {passwordError}
