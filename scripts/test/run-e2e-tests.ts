@@ -144,6 +144,8 @@ async function main(): Promise<number> {
         // and uploads in a throw-away folder.
         CMS_PUBLIC_ARTICLES: "on",
         CMS_CACHE_SECONDS: "2",
+        MEDIA_DRIVER: "local",
+        SUMENEP_LOCAL_MEDIA_FOR_E2E_ONLY: "1",
         MEDIA_ROOT: mediaRoot,
       },
       stdio: ["ignore", log, log],
@@ -162,6 +164,8 @@ async function main(): Promise<number> {
         E2E_BASE_URL: baseUrl,
         DATABASE_URL: databaseUrl,
         DIRECT_URL: directUrl,
+        MEDIA_DRIVER: "local",
+        SUMENEP_LOCAL_MEDIA_FOR_E2E_ONLY: "1",
         MEDIA_ROOT: mediaRoot, // tests that upload through the service write where the server reads
         E2E_SCREENSHOT_DIR: values.screenshots ? path.resolve(values.screenshots) : "",
       },

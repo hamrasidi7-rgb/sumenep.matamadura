@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { docMediaIds, type DocNode } from "@/lib/article-doc";
-import { mediaByIds, type MediaDto } from "@/server/media/service";
+import { mediaByIds, mediaUrl, type MediaDto } from "@/server/media/service";
 
 import { articleState, stateWhere, type ArticleState, type StateFilter } from "./status";
 
@@ -103,7 +103,7 @@ export async function listArticles(db: PrismaClient, filters: ListFilters, now =
     author: r.author.name,
     publishedAt: r.publishedAt?.toISOString() ?? null,
     updatedAt: r.updatedAt.toISOString(),
-    heroSrc: r.heroMedia ? `/media/${r.heroMedia.storageKey}` : null,
+    heroSrc: r.heroMedia ? mediaUrl(r.heroMedia.storageKey) : null,
   }));
   return { items, total, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)), counts };
 }

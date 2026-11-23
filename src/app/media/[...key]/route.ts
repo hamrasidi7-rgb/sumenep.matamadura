@@ -6,9 +6,9 @@ import { getMediaStorage, MEDIA_KEY_PATTERN } from "@/server/media/storage";
 // (no path traversal, no listing).
 export async function GET(_request: Request, { params }: { params: Promise<{ key: string[] }> }) {
   const key = (await params).key.join("/");
-  if (!MEDIA_KEY_PATTERN.test(key)) return new Response("Tidak ditemukan.", { status: 404 });
+  if (!MEDIA_KEY_PATTERN.test(key)) return new Response("Tidak ditemukan.", { status: 404, headers: { "Cache-Control": "no-store" } });
   const data = await getMediaStorage().get(key);
-  if (!data) return new Response("Tidak ditemukan.", { status: 404 });
+  if (!data) return new Response("Tidak ditemukan.", { status: 404, headers: { "Cache-Control": "no-store" } });
   return new Response(new Uint8Array(data), {
     headers: {
       "Content-Type": "image/webp",

@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { MediaAsset } from "@/content/types";
 import { logActivity } from "@/server/activity-log";
 
-import { getMediaStorage } from "./storage";
+import { buildMediaUrl, getMediaStorage } from "./storage";
 
 // Image upload for the CMS (Fase 4 minimum: upload + recent list; the full
 // Media Library — folders, search, delete — is Fase 6).
@@ -36,7 +36,7 @@ export const mediaMetaSchema = z.object({
 });
 export type MediaMeta = z.input<typeof mediaMetaSchema>;
 
-export const mediaUrl = (key: string) => `/media/${key}`;
+export const mediaUrl = (key: string) => buildMediaUrl(key);
 
 export interface MediaDto {
   id: string;
@@ -112,34 +112,42 @@ export async function uploadImage(
   const key = `${now.getUTCFullYear()}/${month}/${sha256.slice(0, 16)}.webp`;
   await getMediaStorage().put(key, processed.data, "image/webp");
 
-  const media = await db.$transaction(async (tx) => {
-    const created = await tx.media.create({
-      data: {
-        storageKey: key,
-        originalName: file.name.slice(0, 200) || "gambar",
-        mimeType: "image/webp",
-        sizeBytes: processed.data.length,
-        width: processed.width,
-        height: processed.height,
-        sha256,
-        alt: fields.alt,
-        caption: fields.caption || null,
-        credit: fields.credit || null,
-      },
+  let media: Media;
+  try {
+    media = await db.$transaction(async (tx) => {
+      const created = await tx.media.create({
+        data: {
+          storageKey: key,
+          originalName: file.name.slice(0, 200) || "gambar",
+          mimeType: "image/webp",
+          sizeBytes: processed.data.length,
+          width: processed.width,
+          height: processed.height,
+          sha256,
+          alt: fields.alt,
+          caption: fields.caption || null,
+          credit: fields.credit || null,
+        },
+      });
+      await logActivity(tx, {
+        actor: "ADMIN",
+        adminId: actor.adminId,
+        action: "media.upload",
+        entityType: "media",
+        entityId: created.id,
+        summary: `Gambar diunggah: ${created.originalName}`,
+        meta: { width: processed.width, height: processed.height, bytes: processed.data.length },
+        ip: actor.ip,
+        userAgent: actor.userAgent,
+      });
+      return created;
     });
-    await logActivity(tx, {
-      actor: "ADMIN",
-      adminId: actor.adminId,
-      action: "media.upload",
-      entityType: "media",
-      entityId: created.id,
-      summary: `Gambar diunggah: ${created.originalName}`,
-      meta: { width: processed.width, height: processed.height, bytes: processed.data.length },
-      ip: actor.ip,
-      userAgent: actor.userAgent,
-    });
-    return created;
-  });
+  } catch (error) {
+    // Hapus objek orphan di storage bila DB gagal menyimpan, kecuali sudah ada baris sha256 yang sama.
+    const existingAfter = await db.media.findUnique({ where: { sha256 } }).catch(() => null);
+    if (!existingAfter) await getMediaStorage().remove(key).catch(() => {});
+    throw error;
+  }
   return { media: toMediaDto(media), duplicate: false };
 }
 

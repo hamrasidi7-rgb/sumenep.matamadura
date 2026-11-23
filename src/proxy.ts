@@ -17,13 +17,24 @@ import { checkSameOrigin } from "@/server/auth/origin";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+function publicMediaOrigin(): string {
+  const raw = process.env.R2_PUBLIC_URL?.trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? ` ${parsed.origin}` : "";
+  } catch {
+    return "";
+  }
+}
+
 function contentSecurityPolicy(nonce: string): string {
   const dev = process.env.NODE_ENV === "development";
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    `img-src 'self' data: blob:${publicMediaOrigin()}`,
     "font-src 'self'",
     "connect-src 'self'",
     // Article previews show the same click-to-play embeds as the public site.
