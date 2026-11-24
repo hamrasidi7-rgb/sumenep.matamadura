@@ -88,6 +88,7 @@ export interface EditorProps {
   media: Record<string, MediaDto>;
   options: { kanal: Option[]; rubrik: Option[]; authors: Option[] };
   defaultAuthorId: string | null;
+  backHref?: string;
   revisions: { id: string; version: number; reason: string; createdAt: string }[];
 }
 
@@ -489,7 +490,7 @@ function Editor(props: EditorProps) {
       {/* Action bar */}
       <div className="sticky top-0 z-20 border-b border-line bg-paper/95 backdrop-blur">
         <div className="mx-auto flex h-[3.75rem] max-w-6xl items-center gap-2 px-4 md:px-6">
-          <Link href="/admin/artikel" className="text-sm font-semibold text-muted hover:text-ink">← Artikel</Link>
+          <Link href={props.backHref ?? "/admin/artikel"} className="text-sm font-semibold text-muted hover:text-ink">← Artikel</Link>
           <StateBadge state={state === "baru" ? null : state} />
           <SaveIndicator save={save} />
           <div className="ml-auto flex items-center gap-2">

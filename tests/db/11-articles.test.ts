@@ -231,24 +231,59 @@ describe("publication", () => {
 });
 
 describe("list, search and filters", () => {
-  test("by text, state, kanal, rubrik and date", async () => {
+  test("by text, state, kanal, rubrik, author, sort, pagination and date", async () => {
+    const redaksiAuthor = await app.author.findUniqueOrThrow({ where: { slug: "redaksi" } });
+    const penulisLain = await owner.author.create({
+      data: { slug: "koresponden-sapeken", name: "Koresponden Sapeken", role: "Kepulauan", isActive: true },
+    });
+
     const a = await created({ title: "Nelayan Masalembu" });
     await created({ title: "Sekolah di Pulau", kanalId: (await findSection(app, "KANAL", "pendidikan")).id, rubrikId: rubrik });
     const c = await created({ title: "Arsip Lama" });
-    const pub = await publishArticle(app, a.id, a.version, ready({ title: "Nelayan Masalembu" }), new Date("2026-01-15T03:00:00Z"), actor);
-    assert.ok(pub.ok);
-    const arch = await changeArticleState(app, c.id, c.version, "archive", actor);
-    assert.ok(arch.ok);
+    const d = await created({ title: "Berita Sapeken", authorId: penulisLain.id });
+    const e = await created({ title: "Liputan Terjadwal" });
+
+    const pubA = await publishArticle(app, a.id, a.version, ready({ title: "Nelayan Masalembu" }), new Date("2026-01-15T03:00:00Z"), actor);
+    assert.ok(pubA.ok);
+    const future = new Date(Date.now() + 2 * 3600_000);
+    const pubE = await publishArticle(app, e.id, e.version, ready({ title: "Liputan Terjadwal" }), future, actor);
+    assert.ok(pubE.ok);
+    const archC = await changeArticleState(app, c.id, c.version, "archive", actor);
+    assert.ok(archC.ok);
+    const trashD = await changeArticleState(app, d.id, d.version, "trash", actor);
+    assert.ok(trashD.ok);
 
     const titles = async (f: Parameters<typeof listArticles>[1]) => (await listArticles(app, f)).items.map((i) => i.title).sort();
     assert.deepEqual(await titles({ q: "masalembu" }), ["Nelayan Masalembu"]);
     assert.deepEqual(await titles({ state: "terbit" }), ["Nelayan Masalembu"]);
+    assert.deepEqual(await titles({ state: "terjadwal" }), ["Liputan Terjadwal"]);
     assert.deepEqual(await titles({ state: "draf" }), ["Sekolah di Pulau"]);
     assert.deepEqual(await titles({ state: "arsip" }), ["Arsip Lama"]);
+    assert.deepEqual(await titles({ state: "sampah" }), ["Berita Sapeken"]);
     assert.deepEqual(await titles({ kanal: "pendidikan" }), ["Sekolah di Pulau"]);
     assert.deepEqual(await titles({ rubrik: "catatan-sumenep" }), ["Sekolah di Pulau"]);
+    assert.deepEqual(await titles({ author: penulisLain.slug, state: "sampah" }), ["Berita Sapeken"]);
+    assert.deepEqual(await titles({ author: redaksiAuthor.slug, state: "terbit" }), ["Nelayan Masalembu"]);
     assert.deepEqual(await titles({ from: "2026-01-15", to: "2026-01-15" }), ["Nelayan Masalembu"]);
+
+    // Clamping halaman di luar batas & ukuran halaman tervalidasi
+    const clamped = await listArticles(app, { state: "semua", perPage: 10, page: 99 });
+    assert.equal(clamped.perPage, 10);
+    assert.equal(clamped.pages, 1);
+    assert.equal(clamped.page, 1);
+    assert.equal(clamped.items.length, 4);
+
+    // Urutan jadwal terdekat
+    const sched = await created({ title: "Liputan Terjadwal Lebih Awal" });
+    const sooner = new Date(Date.now() + 3600_000);
+    await publishArticle(app, sched.id, sched.version, ready({ title: "Liputan Terjadwal Lebih Awal" }), sooner, actor);
+    const orderedSched = await listArticles(app, { state: "terjadwal", sort: "jadwal" });
+    assert.deepEqual(
+      orderedSched.items.map((i) => i.title),
+      ["Liputan Terjadwal Lebih Awal", "Liputan Terjadwal"],
+    );
+
     const { counts } = await listArticles(app, {});
-    assert.deepEqual(counts, { draf: 1, terjadwal: 0, terbit: 1, arsip: 1, sampah: 0 });
+    assert.deepEqual(counts, { draf: 1, terjadwal: 2, terbit: 1, arsip: 1, sampah: 1 });
   });
 });

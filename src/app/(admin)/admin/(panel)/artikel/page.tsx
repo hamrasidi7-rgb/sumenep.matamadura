@@ -1,129 +1,218 @@
-import { FilePlus2, Search } from "lucide-react";
+import { CalendarClock, ExternalLink, FilePlus2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { ArticleFilterForm } from "@/components/admin/articles/ArticleFilterForm";
 import { StateBadge } from "@/components/admin/articles/StateBadge";
+import { WhatsappChannelCopy } from "@/components/admin/articles/WhatsappChannelCopy";
 import { formatWib } from "@/components/admin/format";
 import { Notice } from "@/components/admin/Notice";
-import { editorOptions, listArticles, type ListFilters } from "@/server/articles/queries";
-import { STATE_FILTERS, stateFilter } from "@/server/articles/status";
+import { PaginationNav } from "@/components/admin/PaginationNav";
+import {
+  articleEditUrl,
+  articleListUrl,
+  hasActiveListFilters,
+  nextArticleListState,
+  pageRange,
+  parseArticleListState,
+  PER_PAGE_OPTIONS,
+} from "@/lib/admin-pagination";
+import { SITE } from "@/lib/site";
+import { editorOptions, listArticles } from "@/server/articles/queries";
+import { STATE_FILTERS } from "@/server/articles/status";
 import { requireAdmin } from "@/server/auth/next";
 import { getDb } from "@/server/db";
 
 export const metadata: Metadata = { title: "Artikel" };
+export const dynamic = "force-dynamic";
 
 type Params = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
 
-// Article list. Filters live in the URL (plain GET form: works without
-// JavaScript and can be bookmarked) — same approach as Busacare's
-// "Semua berita" page; paging happens in the database.
+// Daftar manajemen artikel. Saringan dan nomor halaman hidup di URL (form GET
+// bekerja tanpa JavaScript) dan ikut dibawa saat membuka editor agar kembali
+// mendarat di posisi yang sama.
 export default async function ArticlesPage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireAdmin();
   const params = await searchParams;
-  const filters: ListFilters = {
-    q: one(params.q).slice(0, 100),
-    state: stateFilter(one(params.status)),
-    kanal: one(params.kanal),
-    rubrik: one(params.rubrik),
-    from: one(params.dari),
-    to: one(params.sampai),
-    page: Number(one(params.halaman)) || 1,
-  };
+  const urlState = parseArticleListState(params);
   const db = getDb();
-  const [{ items, total, page, pages, counts }, options] = await Promise.all([listArticles(db, filters), editorOptions(db)]);
 
-  const link = (patch: Record<string, string | number | undefined>) => {
-    const next = new URLSearchParams();
-    const merged = { q: filters.q, status: filters.state === "semua" ? "" : filters.state, kanal: filters.kanal, rubrik: filters.rubrik, dari: filters.from, sampai: filters.to, ...patch };
-    for (const [k, v] of Object.entries(merged)) if (v !== undefined && v !== "" && !(k === "halaman" && String(v) === "1")) next.set(k, String(v));
-    const query = next.toString();
-    return `/admin/artikel${query ? `?${query}` : ""}`;
-  };
+  // Jalankan berurutan agar total koneksi serentak tetap <= 4 pada pool MariaDB limit 5.
+  const options = await editorOptions(db);
+  const { items, total, page, pages, perPage, counts } = await listArticles(db, {
+    q: urlState.q,
+    state: urlState.status,
+    kanal: urlState.kanal,
+    rubrik: urlState.rubrik,
+    author: urlState.penulis,
+    from: urlState.dari,
+    to: urlState.sampai,
+    sort: urlState.urut,
+    perPage: urlState.per,
+    page: urlState.halaman,
+  });
+
+  const effectiveState = { ...urlState, per: perPage, halaman: page };
+  const range = pageRange(page, perPage, total);
+  const filtered = hasActiveListFilters(effectiveState);
+
+  const tabUrl = (status: (typeof STATE_FILTERS)[number]["value"]) =>
+    articleListUrl(nextArticleListState(effectiveState, { status }));
+  const perUrl = (per: (typeof PER_PAGE_OPTIONS)[number]) =>
+    articleListUrl(nextArticleListState(effectiveState, { per }));
+  const pageUrl = (targetPage: number) =>
+    articleListUrl(nextArticleListState(effectiveState, { halaman: targetPage }));
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 md:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="font-display text-[2rem] leading-tight font-semibold">Artikel</h1>
-          <Link href="/admin/artikel/baru" className="admin-button">
-            <FilePlus2 className="size-4" aria-hidden /> Tulis artikel
-          </Link>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-display text-[1.75rem] leading-tight font-semibold md:text-[2rem]">Artikel</h1>
+          <p className="mt-1 text-sm text-muted">
+            Kelola seluruh naskah berita, jadwal tayang, arsip, dan tempat sampah redaksi.
+          </p>
         </div>
-        {one(params.pesan) === "dihapus" && (
-          <div className="mt-4">
-            <Notice tone="success">Artikel dihapus permanen.</Notice>
-          </div>
-        )}
+        <Link href="/admin/artikel/baru" className="admin-button shrink-0">
+          <FilePlus2 className="size-4" aria-hidden="true" /> Tulis artikel
+        </Link>
+      </div>
 
-        <nav aria-label="Status artikel" className="mt-6 flex gap-1 overflow-x-auto border-b border-line">
-          {STATE_FILTERS.map((f) => {
-            const count = f.value === "semua" ? counts.draf + counts.terjadwal + counts.terbit + counts.arsip : counts[f.value];
+      {one(params.pesan) === "dihapus" && (
+        <div className="mt-4">
+          <Notice tone="success">Artikel dihapus permanen.</Notice>
+        </div>
+      )}
+
+      <nav aria-label="Status artikel" className="mt-6 flex gap-1 overflow-x-auto border-b border-line">
+        {STATE_FILTERS.map((f) => {
+          const count = f.value === "semua" ? counts.draf + counts.terjadwal + counts.terbit + counts.arsip : counts[f.value];
+          return (
+            <Link
+              key={f.value}
+              href={tabUrl(f.value)}
+              aria-current={effectiveState.status === f.value ? "page" : undefined}
+              className={`admin-tab shrink-0 whitespace-nowrap ${effectiveState.status === f.value ? "admin-tab-active" : ""}`}
+            >
+              {f.label} <span className="text-xs text-muted tabular-nums">({count})</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {effectiveState.status === "sampah" && (
+        <div className="mt-4">
+          <Notice tone="info">
+            Artikel di tempat sampah tidak tampil di situs publik. Buka judul artikel untuk memulihkan ke status sebelumnya atau menghapus permanen.
+          </Notice>
+        </div>
+      )}
+
+      <ArticleFilterForm
+        state={effectiveState}
+        kanalOptions={options.kanal}
+        rubrikOptions={options.rubrik}
+        authorOptions={options.authors}
+      />
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted tabular-nums">
+          {total === 0
+            ? `0 artikel${effectiveState.q ? ` untuk “${effectiveState.q}”` : ""}.`
+            : `Menampilkan ${range.from}–${range.to} dari ${total.toLocaleString("id-ID")} artikel${effectiveState.q ? ` untuk “${effectiveState.q}”` : ""}.`}{" "}
+          Tanggal memakai waktu WIB.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+          <span className="font-semibold uppercase tracking-wide">Tampilkan</span>
+          {PER_PAGE_OPTIONS.map((n) => (
+            <Link
+              key={n}
+              href={perUrl(n)}
+              aria-current={perPage === n ? "page" : undefined}
+              aria-label={`Tampilkan ${n} artikel per halaman`}
+              className={`inline-flex min-h-8 min-w-8 items-center justify-center rounded-md px-2 font-semibold tabular-nums transition-colors ${
+                perPage === n ? "bg-brand text-white" : "border border-line bg-paper text-ink hover:border-ink/40 hover:bg-warm"
+              }`}
+            >
+              {n}
+            </Link>
+          ))}
+          <span>per halaman</span>
+        </div>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="admin-card mt-4 text-center">
+          <p className="text-sm text-muted">
+            {filtered
+              ? "Tidak ada artikel yang cocok dengan saringan ini."
+              : "Belum ada artikel. Mulai menulis lewat tombol Tulis artikel."}
+          </p>
+        </div>
+      ) : (
+        <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-paper shadow-sm">
+          {items.map((a) => {
+            const editHref = articleEditUrl(a.id, effectiveState);
             return (
-              <Link key={f.value} href={link({ status: f.value === "semua" ? "" : f.value, halaman: 1 })} aria-current={filters.state === f.value ? "page" : undefined} className={`admin-tab whitespace-nowrap ${filters.state === f.value ? "admin-tab-active" : ""}`}>
-                {f.label} <span className="text-xs text-muted">({count})</span>
-              </Link>
+              <li key={a.id} className="flex flex-col gap-3 px-4 py-3.5 md:flex-row md:items-center md:justify-between">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  {a.heroSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={a.heroSrc} alt="" className="hidden h-14 w-20 shrink-0 rounded bg-warm object-cover sm:block" loading="lazy" />
+                  ) : (
+                    <span className="hidden h-14 w-20 shrink-0 rounded bg-warm sm:block" aria-hidden="true" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <Link href={editHref} className="font-semibold text-ink break-words hover:text-brand">
+                      {a.title}
+                    </Link>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted">
+                      <StateBadge state={a.state} />
+                      <span>{[a.kanal, a.rubrik].filter(Boolean).join(" · ") || "Tanpa kanal/rubrik"}</span>
+                      <span>{a.author}</span>
+                      {a.state === "terjadwal" && a.publishedAt ? (
+                        <span className="inline-flex items-center gap-1 font-medium text-amber-900 tabular-nums">
+                          <CalendarClock className="size-3.5 shrink-0" aria-hidden="true" />
+                          Jadwal: {formatWib(new Date(a.publishedAt))}
+                        </span>
+                      ) : a.state === "terbit" && a.publishedAt ? (
+                        <span className="tabular-nums">Terbit: {formatWib(new Date(a.publishedAt))}</span>
+                      ) : (
+                        <span className="tabular-nums">Diubah: {formatWib(new Date(a.updatedAt))}</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {a.state === "terbit" && (
+                    <>
+                      <WhatsappChannelCopy title={a.title} standfirst={a.standfirst} slug={a.slug} siteUrl={SITE.url} />
+                      <a
+                        href={`/artikel/${a.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-8 items-center gap-1 rounded-md border border-line bg-paper px-2.5 text-xs font-semibold text-ink transition-colors hover:border-ink/40 hover:bg-warm"
+                      >
+                        Lihat <ExternalLink className="size-3" aria-hidden="true" />
+                      </a>
+                    </>
+                  )}
+                  <Link
+                    href={editHref}
+                    className="inline-flex min-h-8 items-center rounded-md border border-line bg-paper px-2.5 text-xs font-semibold text-ink transition-colors hover:border-ink/40 hover:bg-warm"
+                  >
+                    Sunting
+                  </Link>
+                </div>
+              </li>
             );
           })}
-        </nav>
+        </ul>
+      )}
 
-        <form method="get" action="/admin/artikel" className="mt-4 grid grid-cols-1 gap-3 rounded-lg border border-line bg-paper p-4 md:grid-cols-[2fr_1fr_1fr_auto_auto_auto]" role="search">
-          {filters.state !== "semua" && <input type="hidden" name="status" value={filters.state} />}
-          <label className="relative block md:col-span-1">
-            <span className="sr-only">Cari</span>
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
-            <input name="q" defaultValue={filters.q} placeholder="Cari judul, lead, isi, slug, tag" className="admin-input pl-9" />
-          </label>
-          <select name="kanal" defaultValue={filters.kanal} className="admin-input" aria-label="Kanal">
-            <option value="">Semua kanal</option>
-            {options.kanal.map((k) => <option key={k.id} value={k.slug}>{k.name}</option>)}
-          </select>
-          <select name="rubrik" defaultValue={filters.rubrik} className="admin-input" aria-label="Rubrik">
-            <option value="">Semua rubrik</option>
-            {options.rubrik.map((r) => <option key={r.id} value={r.slug}>{r.name}</option>)}
-          </select>
-          <input type="date" name="dari" defaultValue={filters.from} className="admin-input" aria-label="Dari tanggal" />
-          <input type="date" name="sampai" defaultValue={filters.to} className="admin-input" aria-label="Sampai tanggal" />
-          <button type="submit" className="admin-button">Terapkan</button>
-        </form>
-
-        <p className="mt-4 text-sm text-muted">{total} artikel{filters.q ? ` untuk “${filters.q}”` : ""}. Tanggal = tanggal terbit, atau tanggal dibuat bila belum terbit (WIB).</p>
-
-        {items.length === 0 ? (
-          <p className="mt-8 text-center text-muted">Tidak ada artikel yang cocok.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-paper">
-            {items.map((a) => (
-              <li key={a.id} className="flex items-center gap-3 px-4 py-3">
-                {a.heroSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.heroSrc} alt="" className="hidden h-12 w-18 shrink-0 rounded bg-warm object-cover sm:block" loading="lazy" />
-                ) : (
-                  <span className="hidden h-12 w-18 shrink-0 rounded bg-warm sm:block" aria-hidden />
-                )}
-                <div className="min-w-0 flex-1">
-                  <Link href={`/admin/artikel/${a.id}`} className="font-semibold hover:text-brand">{a.title}</Link>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-                    <StateBadge state={a.state} />
-                    <span>{[a.kanal, a.rubrik].filter(Boolean).join(" · ") || "Tanpa kanal/rubrik"}</span>
-                    <span>{a.author}</span>
-                    <span>{a.publishedAt ? `${a.state === "terjadwal" ? "Tayang" : "Terbit"} ${formatWib(new Date(a.publishedAt))}` : `Diubah ${formatWib(new Date(a.updatedAt))}`}</span>
-                  </p>
-                </div>
-                {a.state === "terbit" && (
-                  <a href={`/artikel/${a.slug}`} target="_blank" rel="noopener" className="hidden text-xs font-semibold text-brand hover:underline md:inline">Lihat</a>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {pages > 1 && (
-          <nav aria-label="Halaman" className="mt-4 flex items-center justify-between text-sm">
-            {page > 1 ? <Link href={link({ halaman: page - 1 })} className="admin-button-quiet">← Sebelumnya</Link> : <span />}
-            <span className="text-muted">Halaman {page} dari {pages}</span>
-            {page < pages ? <Link href={link({ halaman: page + 1 })} className="admin-button-quiet">Berikutnya →</Link> : <span />}
-          </nav>
-        )}
+      <PaginationNav page={page} pages={pages} total={total} perPage={perPage} hrefForPage={pageUrl} />
     </main>
   );
 }

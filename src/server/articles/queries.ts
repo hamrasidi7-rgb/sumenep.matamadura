@@ -1,5 +1,13 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
+import {
+  clampPage,
+  DEFAULT_PER_PAGE,
+  pageOffset,
+  parsePerPage,
+  totalPages,
+  type ArticleSort,
+} from "@/lib/admin-pagination";
 import { docMediaIds, type DocNode } from "@/lib/article-doc";
 import { mediaByIds, mediaUrl, type MediaDto } from "@/server/media/service";
 
@@ -9,16 +17,19 @@ import { toTags } from "./tags";
 // Read side of the CMS: the article list (search + filters + paging), the
 // editor's data, and the small lookups the editor needs.
 
-export const PAGE_SIZE = 20;
+export const PAGE_SIZE = DEFAULT_PER_PAGE;
 
 export interface ListFilters {
   q?: string;
   state?: StateFilter;
   kanal?: string;
   rubrik?: string;
+  author?: string;
   /** yyyy-mm-dd (WIB calendar days), inclusive */
   from?: string;
   to?: string;
+  sort?: ArticleSort;
+  perPage?: number;
   page?: number;
 }
 
@@ -46,6 +57,7 @@ export function listWhere(filters: ListFilters, now = new Date()): Prisma.Articl
   }
   if (filters.kanal) and.push({ kanal: { slug: filters.kanal } });
   if (filters.rubrik) and.push({ rubrik: { slug: filters.rubrik } });
+  if (filters.author) and.push({ author: { slug: filters.author } });
   // "Tanggal" = publish date when there is one, otherwise the creation date.
   const range: Prisma.DateTimeFilter = {};
   if (filters.from && DAY.test(filters.from)) range.gte = wibDayStart(filters.from);
@@ -56,9 +68,17 @@ export function listWhere(filters: ListFilters, now = new Date()): Prisma.Articl
   return { AND: and };
 }
 
+function listOrderBy(sort?: ArticleSort): Prisma.ArticleOrderByWithRelationInput[] {
+  if (sort === "terbit") return [{ publishedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }];
+  if (sort === "jadwal") return [{ publishedAt: "asc" }, { updatedAt: "desc" }, { id: "desc" }];
+  return [{ updatedAt: "desc" }, { id: "desc" }];
+}
+
 export interface ArticleRow {
   id: string;
+  version: number;
   title: string;
+  standfirst: string;
   slug: string;
   state: ArticleState;
   kanal: string | null;
@@ -71,33 +91,40 @@ export interface ArticleRow {
 
 export async function listArticles(db: PrismaClient, filters: ListFilters, now = new Date()) {
   const where = listWhere(filters, now);
-  const page = Math.max(1, Math.floor(filters.page ?? 1) || 1);
-  const [total, rows, counts] = await Promise.all([
-    db.article.count({ where }),
-    db.article.findMany({
-      where,
-      orderBy: [{ updatedAt: "desc" }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      select: {
-        id: true,
-        title: true,
-        slug: true,
-        status: true,
-        publishedAt: true,
-        deletedAt: true,
-        updatedAt: true,
-        kanal: { select: { name: true } },
-        rubrik: { select: { name: true } },
-        author: { select: { name: true } },
-        heroMedia: { select: { storageKey: true } },
-      },
-    }),
-    stateCounts(db, now),
-  ]);
+  const perPage = parsePerPage(filters.perPage);
+  // Batasi maksimal 4 query paralel agar tetap aman di bawah connectionLimit: 5 MariaDB Hostinger.
+  const [total, counts] = await Promise.all([db.article.count({ where }), stateCounts(db, now)]);
+  const pages = totalPages(total, perPage);
+  const page = clampPage(filters.page, pages);
+  const rows =
+    total === 0
+      ? []
+      : await db.article.findMany({
+          where,
+          orderBy: listOrderBy(filters.sort),
+          skip: pageOffset(page, perPage),
+          take: perPage,
+          select: {
+            id: true,
+            version: true,
+            title: true,
+            standfirst: true,
+            slug: true,
+            status: true,
+            publishedAt: true,
+            deletedAt: true,
+            updatedAt: true,
+            kanal: { select: { name: true } },
+            rubrik: { select: { name: true } },
+            author: { select: { name: true } },
+            heroMedia: { select: { storageKey: true } },
+          },
+        });
   const items: ArticleRow[] = rows.map((r) => ({
     id: r.id,
+    version: r.version,
     title: r.title,
+    standfirst: r.standfirst,
     slug: r.slug,
     state: articleState(r, now),
     kanal: r.kanal?.name ?? null,
@@ -107,14 +134,31 @@ export async function listArticles(db: PrismaClient, filters: ListFilters, now =
     updatedAt: r.updatedAt.toISOString(),
     heroSrc: r.heroMedia ? mediaUrl(r.heroMedia.storageKey) : null,
   }));
-  return { items, total, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)), counts };
+  return { items, total, page, pages, perPage, counts };
 }
 
 export async function stateCounts(db: PrismaClient, now = new Date()): Promise<Record<ArticleState, number>> {
-  const [draf, terjadwal, terbit, arsip, sampah] = await Promise.all(
-    (["draf", "terjadwal", "terbit", "arsip", "sampah"] as const).map((s) => db.article.count({ where: stateWhere(s, now) })),
-  );
-  return { draf, terjadwal, terbit, arsip, sampah };
+  const [statusGroups, terjadwal, sampah] = await Promise.all([
+    db.article.groupBy({ by: ["status"], where: { deletedAt: null }, _count: { _all: true } }),
+    db.article.count({ where: stateWhere("terjadwal", now) }),
+    db.article.count({ where: stateWhere("sampah", now) }),
+  ]);
+  let draf = 0;
+  let arsip = 0;
+  let publishedTotal = 0;
+  for (const row of statusGroups) {
+    if (row.status === "DRAFT") draf += row._count._all;
+    else if (row.status === "ARCHIVED") arsip += row._count._all;
+    else if (row.status === "PUBLISHED") publishedTotal += row._count._all;
+  }
+  const scheduledCount = Math.max(0, Math.min(terjadwal, publishedTotal));
+  return {
+    draf,
+    terjadwal: scheduledCount,
+    terbit: Math.max(0, publishedTotal - scheduledCount),
+    arsip,
+    sampah,
+  };
 }
 
 /** Choices for the editor's selects. */
