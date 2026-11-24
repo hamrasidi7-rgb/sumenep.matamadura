@@ -286,4 +286,44 @@ describe("list, search and filters", () => {
     const { counts } = await listArticles(app, {});
     assert.deepEqual(counts, { draf: 1, terjadwal: 2, terbit: 1, arsip: 1, sampah: 1 });
   });
+
+  test("Subfase 3B: everPublished flag, stale-version state transition conflict, and safe delete dependencies", async () => {
+    const draftOnly = await created({ title: "Draf Belum Pernah Terbit" });
+    const pubFirst = await created({ title: "Pernah Terbit Sebelum Dihapus" });
+    const pubRes = await publishArticle(app, pubFirst.id, pubFirst.version, ready({ title: "Pernah Terbit Sebelum Dihapus" }), null, actor);
+    assert.ok(pubRes.ok);
+
+    // Kaitkan dengan beranda (HomepageSettings + HomepageFeatured) untuk memastikan delete membersihkan dependensi tanpa menghapus media.
+    await owner.homepageSettings.upsert({
+      where: { id: 1 },
+      create: { id: 1, heroArticleId: pubFirst.id, latestCount: 4 },
+      update: { heroArticleId: pubFirst.id },
+    });
+    await owner.homepageFeatured.create({ data: { articleId: pubFirst.id, position: 0 } });
+
+    const rowsBefore = await listArticles(app, { state: "semua" });
+    const draftRow = rowsBefore.items.find((r) => r.id === draftOnly.id);
+    const pubRow = rowsBefore.items.find((r) => r.id === pubFirst.id);
+    assert.equal(draftRow?.everPublished, false);
+    assert.equal(pubRow?.everPublished, true);
+
+    // Stale version conflict pada changeArticleState
+    const staleVersion = await changeArticleState(app, pubFirst.id, pubFirst.version, "trash", actor);
+    assert.ok(!staleVersion.ok && staleVersion.conflict);
+    assert.equal(staleVersion.conflict.version, pubRes.version);
+
+    // Trash + permanent delete: hapus featured/slug history, kosongkan heroArticleId, pertahankan media & log audit
+    const trashed = await changeArticleState(app, pubFirst.id, pubRes.version, "trash", actor);
+    assert.ok(trashed.ok);
+    const trashedList = await listArticles(app, { state: "sampah" });
+    assert.equal(trashedList.items.find((r) => r.id === pubFirst.id)?.everPublished, true);
+
+    const gone = await deleteArticlePermanently(app, pubFirst.id, actor);
+    assert.ok(gone.ok);
+    assert.equal(await owner.article.count({ where: { id: pubFirst.id } }), 0);
+    assert.equal(await owner.homepageFeatured.count({ where: { articleId: pubFirst.id } }), 0);
+    assert.equal((await owner.homepageSettings.findUniqueOrThrow({ where: { id: 1 } })).heroArticleId, null);
+    assert.equal(await owner.media.count({ where: { id: heroId } }), 1, "media tetap terjaga");
+    assert.equal(await owner.activityLog.count({ where: { action: "article.delete", entityId: pubFirst.id } }), 1);
+  });
 });

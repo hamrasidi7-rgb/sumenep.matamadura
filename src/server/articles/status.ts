@@ -62,3 +62,20 @@ export function stateWhere(state: StateFilter, now = new Date()): Prisma.Article
 export function publicWhere(now = new Date()): Prisma.ArticleWhereInput {
   return stateWhere("terbit", now);
 }
+
+export type ListStateAction = "unpublish" | "archive" | "unarchive" | "trash" | "restore";
+
+/** Aksi perubahan status aman yang boleh dipicu langsung dari daftar artikel. */
+export function allowedListTransitions(state: ArticleState): readonly ListStateAction[] {
+  switch (state) {
+    case "terbit":
+    case "terjadwal":
+      return ["unpublish", "archive", "trash"];
+    case "draf":
+      return ["archive", "trash"];
+    case "arsip":
+      return ["unarchive", "trash"];
+    case "sampah":
+      return ["restore"];
+  }
+}

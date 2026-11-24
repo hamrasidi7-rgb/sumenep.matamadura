@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ArticleFilterForm } from "@/components/admin/articles/ArticleFilterForm";
+import { ArticleListActions } from "@/components/admin/articles/ArticleListActions";
 import { StateBadge } from "@/components/admin/articles/StateBadge";
 import { WhatsappChannelCopy } from "@/components/admin/articles/WhatsappChannelCopy";
 import { formatWib } from "@/components/admin/format";
@@ -29,6 +30,15 @@ export const dynamic = "force-dynamic";
 type Params = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
 
+const ACTION_NOTICES: Record<string, string> = {
+  dihapus: "Artikel dihapus permanen.",
+  tarik: "Artikel ditarik dari publikasi (kembali menjadi draf).",
+  arsip: "Artikel diarsipkan dan tidak tampil di situs.",
+  "buka-arsip": "Artikel dikembalikan dari arsip sebagai draf.",
+  sampah: "Artikel dipindahkan ke tempat sampah.",
+  pulih: "Artikel dipulihkan dari tempat sampah.",
+};
+
 // Daftar manajemen artikel. Saringan dan nomor halaman hidup di URL (form GET
 // bekerja tanpa JavaScript) dan ikut dibawa saat membuka editor agar kembali
 // mendarat di posisi yang sama.
@@ -54,8 +64,10 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   });
 
   const effectiveState = { ...urlState, per: perPage, halaman: page };
+  const currentListUrl = articleListUrl(effectiveState);
   const range = pageRange(page, perPage, total);
   const filtered = hasActiveListFilters(effectiveState);
+  const noticeText = ACTION_NOTICES[one(params.pesan)];
 
   const tabUrl = (status: (typeof STATE_FILTERS)[number]["value"]) =>
     articleListUrl(nextArticleListState(effectiveState, { status }));
@@ -78,9 +90,9 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
         </Link>
       </div>
 
-      {one(params.pesan) === "dihapus" && (
+      {noticeText && (
         <div className="mt-4">
-          <Notice tone="success">Artikel dihapus permanen.</Notice>
+          <Notice tone="success">{noticeText}</Notice>
         </div>
       )}
 
@@ -103,7 +115,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
       {effectiveState.status === "sampah" && (
         <div className="mt-4">
           <Notice tone="info">
-            Artikel di tempat sampah tidak tampil di situs publik. Buka judul artikel untuk memulihkan ke status sebelumnya atau menghapus permanen.
+            Artikel di tempat sampah tidak tampil di situs publik. Gunakan tombol Pulihkan untuk mengembalikan ke status asal, atau Hapus permanen melalui konfirmasi.
           </Notice>
         </div>
       )}
@@ -185,7 +197,17 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <ArticleListActions
+                  article={{
+                    id: a.id,
+                    version: a.version,
+                    title: a.title,
+                    slug: a.slug,
+                    state: a.state,
+                    everPublished: a.everPublished,
+                  }}
+                  listUrl={currentListUrl}
+                >
                   {a.state === "terbit" && (
                     <>
                       <WhatsappChannelCopy title={a.title} standfirst={a.standfirst} slug={a.slug} siteUrl={SITE.url} />
@@ -205,7 +227,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
                   >
                     Sunting
                   </Link>
-                </div>
+                </ArticleListActions>
               </li>
             );
           })}

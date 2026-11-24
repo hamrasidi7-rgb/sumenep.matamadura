@@ -317,6 +317,60 @@ describe("list and server-side protection", () => {
     await page.close();
   });
 
+  test("list operational state actions and permanent delete confirmation modal", async () => {
+    const { id, slug } = await draft("Artikel Aksi Daftar Uji");
+    const page = await context.newPage();
+    await page.goto(`${BASE}/admin/artikel?status=draf`);
+    const row = page.locator("li", { has: page.getByRole("link", { name: "Artikel Aksi Daftar Uji" }) });
+    await row.getByRole("button", { name: "Kelola" }).click();
+    page.once("dialog", (d) => d.accept());
+    await row.getByRole("menuitem", { name: "Arsipkan" }).click();
+    await page.waitForURL(/pesan=arsip/);
+    await page.getByText("Artikel diarsipkan dan tidak tampil di situs.").waitFor();
+
+    await page.goto(`${BASE}/admin/artikel?status=arsip`);
+    const archRow = page.locator("li", { has: page.getByRole("link", { name: "Artikel Aksi Daftar Uji" }) });
+    await archRow.getByRole("button", { name: "Kelola" }).click();
+    await archRow.getByRole("menuitem", { name: "Kembalikan ke draf" }).click();
+    await page.waitForURL(/pesan=buka-arsip/);
+
+    await page.goto(`${BASE}/admin/artikel?status=draf`);
+    const drafRow = page.locator("li", { has: page.getByRole("link", { name: "Artikel Aksi Daftar Uji" }) });
+    await drafRow.getByRole("button", { name: "Kelola" }).click();
+    page.once("dialog", (d) => d.accept());
+    await drafRow.getByRole("menuitem", { name: "Pindahkan ke tempat sampah" }).click();
+    await page.waitForURL(/pesan=sampah/);
+
+    await page.goto(`${BASE}/admin/artikel?status=sampah`);
+    const trashRow = page.locator("li", { has: page.getByRole("link", { name: "Artikel Aksi Daftar Uji" }) });
+    await trashRow.getByRole("button", { name: "Pulihkan" }).click();
+    await page.waitForURL(/pesan=pulih/);
+    assert.equal((await owner.article.findUniqueOrThrow({ where: { id } })).deletedAt, null);
+
+    await page.goto(`${BASE}/admin/artikel?status=draf`);
+    const reTrashRow = page.locator("li", { has: page.getByRole("link", { name: "Artikel Aksi Daftar Uji" }) });
+    await reTrashRow.getByRole("button", { name: "Kelola" }).click();
+    page.once("dialog", (d) => d.accept());
+    await reTrashRow.getByRole("menuitem", { name: "Pindahkan ke tempat sampah" }).click();
+    await page.waitForURL(/pesan=sampah/);
+
+    await page.goto(`${BASE}/admin/artikel?status=sampah`);
+    const purgeRow = page.locator("li", { has: page.getByRole("link", { name: "Artikel Aksi Daftar Uji" }) });
+    await purgeRow.getByRole("button", { name: "Hapus permanen" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByText(`/artikel/${slug}`).waitFor();
+    const confirmBtn = dialog.getByRole("button", { name: "Hapus permanen" });
+    assert.equal(await confirmBtn.isDisabled(), true);
+    await dialog.getByPlaceholder("HAPUS").fill("HAPUS");
+    assert.equal(await confirmBtn.isDisabled(), false);
+    await confirmBtn.click();
+    await page.waitForURL(/\/admin\/artikel\?status=sampah&pesan=dihapus/);
+    await page.getByText("Artikel dihapus permanen.").waitFor();
+    assert.equal(await owner.article.count({ where: { id } }), 0);
+    assert.equal(await owner.activityLog.count({ where: { action: "article.delete", entityId: id } }), 1);
+    await page.close();
+  });
+
   test("a forged Server Action with a javascript: link and a script node is stored sanitised", async () => {
     const page = await context.newPage();
     await page.goto(`${BASE}/admin/artikel/baru`);

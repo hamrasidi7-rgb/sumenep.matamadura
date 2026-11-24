@@ -81,6 +81,7 @@ export interface ArticleRow {
   standfirst: string;
   slug: string;
   state: ArticleState;
+  everPublished: boolean;
   kanal: string | null;
   rubrik: string | null;
   author: string;
@@ -127,6 +128,7 @@ export async function listArticles(db: PrismaClient, filters: ListFilters, now =
     standfirst: r.standfirst,
     slug: r.slug,
     state: articleState(r, now),
+    everPublished: r.publishedAt !== null,
     kanal: r.kanal?.name ?? null,
     rubrik: r.rubrik?.name ?? null,
     author: r.author.name,

@@ -17,6 +17,7 @@ import {
   totalPages,
 } from "@/lib/admin-pagination";
 import { formatWhatsappChannelText, shortSummary, whatsappChannelUrl } from "@/lib/whatsapp-channel";
+import { allowedListTransitions } from "@/server/articles/status";
 
 describe("admin pagination and article list URL helpers", () => {
   test("parsePerPage whitelists 10, 20, 50 and refuses oversized values", () => {
@@ -122,5 +123,15 @@ describe("WhatsApp channel formatter", () => {
       msg,
       "*Harga Garam Kalianget Stabil*\n\nRingkasan berita dari pesisir Sumenep.\n\nBaca selengkapnya: https://sumenep.matamaduranews.com/artikel/harga-garam-kalianget?utm_source=whatsapp&utm_medium=saluran",
     );
+  });
+});
+
+describe("allowedListTransitions (Subfase 3B)", () => {
+  test("each article state exposes only valid non-destructive or trash-gated transitions", () => {
+    assert.deepEqual(allowedListTransitions("terbit"), ["unpublish", "archive", "trash"]);
+    assert.deepEqual(allowedListTransitions("terjadwal"), ["unpublish", "archive", "trash"]);
+    assert.deepEqual(allowedListTransitions("draf"), ["archive", "trash"]);
+    assert.deepEqual(allowedListTransitions("arsip"), ["unarchive", "trash"]);
+    assert.deepEqual(allowedListTransitions("sampah"), ["restore"]);
   });
 });

@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import type { ArticleFieldsInput } from "@/server/articles/fields";
@@ -63,7 +64,11 @@ export async function changeArticleStateAction(articleId: string, expectedVersio
   if (!id.safeParse(articleId).success || !version.safeParse(expectedVersion).success) return invalid;
   if (!["unpublish", "archive", "unarchive", "trash", "restore"].includes(action)) return invalid;
   const result = await changeArticleState(getDb(), articleId, expectedVersion, action, who);
-  if (result.ok) refreshPublicArticles();
+  if (result.ok) {
+    refreshPublicArticles();
+    revalidatePath("/admin/artikel");
+    revalidatePath("/admin");
+  }
   return result;
 }
 
@@ -71,7 +76,11 @@ export async function deleteArticleAction(articleId: string) {
   const who = await actor();
   if (!id.safeParse(articleId).success) return invalid;
   const result = await deleteArticlePermanently(getDb(), articleId, who);
-  if (result.ok) refreshPublicArticles();
+  if (result.ok) {
+    refreshPublicArticles();
+    revalidatePath("/admin/artikel");
+    revalidatePath("/admin");
+  }
   return result;
 }
 
