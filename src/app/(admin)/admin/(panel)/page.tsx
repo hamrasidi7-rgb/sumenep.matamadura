@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { AdminHeader } from "@/components/admin/AdminHeader";
 import { activityLabel, formatWib } from "@/components/admin/format";
 import { stateCounts } from "@/server/articles/queries";
 import { requireAdmin } from "@/server/auth/next";
@@ -27,9 +26,7 @@ export default async function DashboardPage() {
   ]);
 
   return (
-    <>
-      <AdminHeader adminName={session.admin.name} current="/admin" />
-      <main className="mx-auto max-w-6xl px-4 py-8 md:px-6 md:py-10">
+    <main className="mx-auto max-w-6xl px-4 py-8 md:px-6 md:py-10">
         <h1 className="font-display text-[2rem] leading-tight font-semibold">Selamat datang, {session.admin.name}</h1>
         <p className="mt-1 text-sm text-muted">
           Masuk sebagai {session.admin.email}. Sesi berakhir otomatis setelah 8 jam tanpa aktivitas.
@@ -102,7 +99,6 @@ export default async function DashboardPage() {
           </ol>
           <p className="mt-3 text-xs text-muted">Catatan aktivitas tidak dapat diubah atau dihapus.</p>
         </section>
-      </main>
-    </>
+    </main>
   );
 }

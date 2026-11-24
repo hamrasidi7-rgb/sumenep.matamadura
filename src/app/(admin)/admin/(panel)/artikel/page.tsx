@@ -2,7 +2,6 @@ import { FilePlus2, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { AdminHeader } from "@/components/admin/AdminHeader";
 import { StateBadge } from "@/components/admin/articles/StateBadge";
 import { formatWib } from "@/components/admin/format";
 import { Notice } from "@/components/admin/Notice";
@@ -20,7 +19,7 @@ const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : "
 // JavaScript and can be bookmarked) — same approach as Busacare's
 // "Semua berita" page; paging happens in the database.
 export default async function ArticlesPage({ searchParams }: { searchParams: Promise<Params> }) {
-  const session = await requireAdmin();
+  await requireAdmin();
   const params = await searchParams;
   const filters: ListFilters = {
     q: one(params.q).slice(0, 100),
@@ -43,9 +42,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   };
 
   return (
-    <>
-      <AdminHeader adminName={session.admin.name} current="/admin/artikel" />
-      <main className="mx-auto max-w-6xl px-4 py-8 md:px-6">
+    <main className="mx-auto max-w-6xl px-4 py-8 md:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-[2rem] leading-tight font-semibold">Artikel</h1>
           <Link href="/admin/artikel/baru" className="admin-button">
@@ -127,7 +124,6 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
             {page < pages ? <Link href={link({ halaman: page + 1 })} className="admin-button-quiet">Berikutnya →</Link> : <span />}
           </nav>
         )}
-      </main>
-    </>
+    </main>
   );
 }

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { ConfirmButton } from "@/components/admin/ConfirmButton";
-import { AdminHeader } from "@/components/admin/AdminHeader";
 import { describeDevice, formatWib } from "@/components/admin/format";
 import { Notice } from "@/components/admin/Notice";
 import { requireAdmin } from "@/server/auth/next";
@@ -30,9 +29,7 @@ export default async function AccountPage({
   const sessions = await listActiveSessions(getDb());
 
   return (
-    <>
-      <AdminHeader adminName={session.admin.name} current="/admin/akun" />
-      <main className="mx-auto max-w-6xl px-4 py-8 md:px-6 md:py-10">
+    <main className="mx-auto max-w-6xl px-4 py-8 md:px-6 md:py-10">
         <h1 className="font-display text-[2rem] leading-tight font-semibold">Akun & Keamanan</h1>
         {status && (
           <div className="mt-5">
@@ -122,7 +119,6 @@ export default async function AccountPage({
             })}
           </ul>
         </section>
-      </main>
-    </>
+    </main>
   );
 }
