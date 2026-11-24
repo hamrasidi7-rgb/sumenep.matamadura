@@ -47,11 +47,31 @@ function step(name: string, state: StepState, note: string) {
   log(`${name}: ${state} — ${entry.note}`);
 }
 
+/** Search cwd and up to 3 parent directories for a relative path. */
+function findInAncestors(relPath: string, cwd = process.cwd()): string | null {
+  let dir = path.resolve(cwd);
+  for (let i = 0; i < 4; i++) {
+    const candidate = path.join(dir, relPath);
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+function findPrismaCli(cwd = process.cwd()): string | null {
+  return (
+    findInAncestors(path.join("node_modules", "prisma", "build", "index.js"), cwd) ??
+    findInAncestors(path.join("node_modules", ".bin", "prisma"), cwd)
+  );
+}
+
 /** Tables the SUMENEP migrations create (from prisma/migrations), plus Prisma's own. */
 function sumenepTables(cwd = process.cwd()): Set<string> {
   const names = new Set(["_prisma_migrations", "zz_sumenep_probe"]);
-  const dir = path.join(cwd, "prisma", "migrations");
-  if (!fs.existsSync(dir)) return names;
+  const dir = findInAncestors(path.join("prisma", "migrations"), cwd);
+  if (!dir) return names;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const file = path.join(dir, entry.name, "migration.sql");
     if (!entry.isDirectory() || !fs.existsSync(file)) continue;
@@ -80,11 +100,13 @@ function describeDbError(error: unknown): string {
 }
 
 function migrateDeploy(url: string): Promise<{ ok: boolean; note: string }> {
-  const cli = path.join(process.cwd(), "node_modules", "prisma", "build", "index.js");
-  if (!fs.existsSync(cli)) return Promise.resolve({ ok: false, note: "Prisma CLI tidak ditemukan di node_modules" });
+  const cli = findPrismaCli();
+  if (!cli) return Promise.resolve({ ok: false, note: "Prisma CLI tidak ditemukan di node_modules" });
+  const schema = findInAncestors(path.join("prisma", "schema.prisma"));
+  const runCwd = schema ? path.dirname(path.dirname(schema)) : process.cwd();
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [cli, "migrate", "deploy"], {
-      cwd: process.cwd(),
+      cwd: runCwd,
       env: { ...process.env, DIRECT_URL: url, DATABASE_URL: url, CHECKPOINT_DISABLE: "1", PRISMA_HIDE_UPDATE_MESSAGE: "1" },
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
