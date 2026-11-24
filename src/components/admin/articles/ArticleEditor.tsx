@@ -8,7 +8,6 @@ import {
   CircleCheck,
   CloudOff,
   Eye,
-  History,
   ImageIcon,
   Loader2,
   RotateCcw,
@@ -32,15 +31,18 @@ import {
 } from "@/app/(admin)/admin/(panel)/artikel/actions";
 import { formatWib } from "@/components/admin/format";
 import { Notice } from "@/components/admin/Notice";
+import { WordCounter } from "@/components/admin/WordCounter";
 import { EMPTY_DOC, type DocNode } from "@/lib/article-doc";
 import { slugify } from "@/lib/article-slug";
-import type { SeoField } from "@/lib/seo-engine";
+import { analyzeBody, type SeoField } from "@/lib/seo-engine";
+import { buildSeoPreview, estimateReadingMinutes, SITE_PUBLIC_HOST } from "@/lib/seo-preview";
 import type { EditableArticle } from "@/server/articles/queries";
 import type { ArticleState } from "@/server/articles/status";
 import type { MediaDto } from "@/server/media/service";
 
 import { MediaProvider, useMedia } from "../editor/MediaContext";
 import { RichTextEditor } from "../editor/RichTextEditor";
+import { SettingsSection } from "../editor/SettingsSection";
 import { clearDraft, draftKey, readDraft, writeDraft } from "./local-draft";
 import { SeoPanel } from "./SeoPanel";
 import { StateBadge } from "./StateBadge";
@@ -194,6 +196,8 @@ function Editor(props: EditorProps) {
   const [scheduleAt, setScheduleAt] = useState(isoToWibInput(props.initial?.publishedAt ?? null));
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [heroSectionSignal, setHeroSectionSignal] = useState(0);
+  const [seoSectionSignal, setSeoSectionSignal] = useState(0);
 
   const live = state === "terbit" || state === "terjadwal";
   const trashed = state === "sampah";
@@ -463,11 +467,36 @@ function Editor(props: EditorProps) {
 
   const focusField = (field: SeoField) => {
     const id = { title: "judul", standfirst: "lead", body: "isi", slug: "slug", seoTitle: "seo-title", seoDescription: "seo-description", canonicalUrl: "canonical", hero: "gambar-utama" }[field];
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
-    document.getElementById(id)?.focus();
+    if (field === "hero") setHeroSectionSignal((n) => n + 1);
+    if (field === "seoTitle" || field === "seoDescription" || field === "canonicalUrl") {
+      setSeoSectionSignal((n) => n + 1);
+    }
+    setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById(id)?.focus();
+    }, 40);
   };
 
   const hero = fields.heroMediaId ? media[fields.heroMediaId] : undefined;
+  const og = fields.ogMediaId ? media[fields.ogMediaId] : undefined;
+  const bodyWordCount = useMemo(() => analyzeBody(fields.body).wordCount, [fields.body]);
+  const readingMinutes = estimateReadingMinutes(bodyWordCount);
+  const seoPreview = useMemo(
+    () =>
+      buildSeoPreview({
+        title: fields.title,
+        slug: fields.slug,
+        standfirst: fields.standfirst,
+        seoTitle: fields.seoTitle,
+        seoDescription: fields.seoDescription,
+        canonicalUrl: fields.canonicalUrl,
+        heroMedia: hero ?? null,
+        ogMedia: og ?? null,
+      }),
+    [fields.title, fields.slug, fields.standfirst, fields.seoTitle, fields.seoDescription, fields.canonicalUrl, hero, og],
+  );
+  const selectedAuthor = props.options.authors.find((a) => a.id === fields.authorId)?.name ?? "Belum dipilih";
+  const selectedKanal = props.options.kanal.find((k) => k.id === fields.kanalId)?.name ?? "Belum dipilih";
   const seoInput = useMemo(
     () => ({
       title: fields.title,
@@ -551,22 +580,45 @@ function Editor(props: EditorProps) {
               <textarea id="judul" value={fields.title} onChange={(e) => update({ title: e.target.value.replace(/\n/g, " ") })} placeholder="Judul artikel" rows={2} maxLength={200} disabled={trashed} className="font-display w-full resize-none border-0 bg-transparent text-[1.75rem] leading-tight font-semibold outline-none placeholder:text-muted/60 md:text-[2.125rem]" />
               {err("title")}
               <div className="mt-1 flex flex-wrap items-center gap-x-1 text-sm text-muted">
-                <label htmlFor="slug">sumenep.matamaduranews.com/artikel/</label>
+                <label htmlFor="slug">{SITE_PUBLIC_HOST}/artikel/</label>
                 <input id="slug" value={fields.slug} onChange={(e) => { setSlugTouched(true); update({ slug: e.target.value.toLowerCase() }); }} disabled={trashed} className="min-w-0 flex-1 border-b border-dashed border-line bg-transparent font-mono text-sm text-ink outline-none focus:border-brand" aria-describedby="slug-help" />
               </div>
               <p id="slug-help" className="admin-help">{everPublished ? "Mengubah slug artikel yang pernah terbit: alamat lama otomatis dialihkan (301)." : "Mengikuti judul sampai Anda mengubahnya sendiri."}</p>
+              {!trashed && seoPreview.slugDivergesFromTitle && (slugTouched || everPublished) && (
+                <p className="mt-1.5 flex flex-wrap items-center gap-2 rounded-md border border-line bg-warm/60 px-2.5 py-1.5 text-xs text-muted">
+                  <span>
+                    {everPublished
+                      ? "Slug dipertahankan dari URL terbit agar tautan tidak berubah."
+                      : "Judul berbeda dari slug saat ini."}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => update({ slug: seoPreview.suggestedSlug })}
+                    className="font-semibold text-brand hover:underline"
+                  >
+                    Sesuaikan slug ({seoPreview.suggestedSlug})
+                  </button>
+                </p>
+              )}
               {err("slug")}
             </div>
 
             <div>
               <label htmlFor="lead" className="admin-label">Lead (standfirst)</label>
               <textarea id="lead" value={fields.standfirst} onChange={(e) => update({ standfirst: e.target.value })} rows={3} maxLength={600} disabled={trashed} className="admin-input mt-1.5 py-2" placeholder="Satu-dua kalimat inti tulisan" />
+              <WordCounter text={fields.standfirst} recommendedMin={12} recommendedContext="untuk lead artikel" />
               {err("standfirst")}
             </div>
 
             <div id="isi" tabIndex={-1}>
               <span className="admin-label mb-1.5">Isi artikel</span>
               <RichTextEditor content={fields.body} onChange={(body) => update({ body })} editable={!trashed} />
+              <WordCounter
+                wordCount={bodyWordCount}
+                recommendedMin={300}
+                recommendedContext="untuk artikel berita"
+                extra={readingMinutes > 0 ? `Estimasi ${readingMinutes} menit baca` : undefined}
+              />
               {err("body")}
             </div>
           </div>
@@ -634,8 +686,11 @@ function Editor(props: EditorProps) {
               )}
             </section>
 
-            <section className="admin-card space-y-3" aria-labelledby="pengaturan">
-              <h2 id="pengaturan" className="font-display text-lg font-semibold">Pengaturan</h2>
+            <SettingsSection
+              title="Pengaturan"
+              summary={`${TEMPLATES.find((t) => t.value === fields.template)?.label ?? "Berita"} · ${selectedKanal} · ${selectedAuthor}`}
+              openOnDesktop
+            >
               <fieldset disabled={trashed}>
                 <legend className="admin-label">Template</legend>
                 <div className="mt-1.5 grid gap-1.5">
@@ -658,12 +713,23 @@ function Editor(props: EditorProps) {
                 <input type="checkbox" checked={fields.hideFromHomepage} onChange={(e) => update({ hideFromHomepage: e.target.checked })} disabled={trashed} />
                 Jangan tampilkan di beranda
               </label>
-            </section>
+            </SettingsSection>
 
-            <HeroPanel heroId={fields.heroMediaId} onChange={(heroMediaId) => update({ heroMediaId })} disabled={trashed} error={errors.heroMediaId} />
+            <SettingsSection
+              title="Gambar utama"
+              summary={hero ? hero.alt || hero.src : "Belum dipilih"}
+              openOnDesktop
+              openSignal={heroSectionSignal}
+            >
+              <HeroPanel heroId={fields.heroMediaId} onChange={(heroMediaId) => update({ heroMediaId })} disabled={trashed} error={errors.heroMediaId} />
+            </SettingsSection>
 
-            <section className="admin-card space-y-3" aria-labelledby="seo">
-              <h2 id="seo" className="font-display text-lg font-semibold">SEO</h2>
+            <SettingsSection
+              title="SEO"
+              summary={fields.seoTitle ? "Judul SEO khusus terpasang" : "Mengikuti judul & lead artikel"}
+              openOnDesktop
+              openSignal={seoSectionSignal}
+            >
               <Counted id="seo-title" label="SEO title" value={fields.seoTitle} onChange={(seoTitle) => update({ seoTitle })} max={120} ideal={70} placeholder={fields.title} disabled={trashed} />
               {err("seoTitle")}
               <Counted id="seo-description" label="Meta description" value={fields.seoDescription} onChange={(seoDescription) => update({ seoDescription })} max={300} ideal={160} placeholder={fields.standfirst} multiline disabled={trashed} />
@@ -677,17 +743,44 @@ function Editor(props: EditorProps) {
               <OgImageField ogId={fields.ogMediaId} onChange={(ogMediaId) => update({ ogMediaId })} disabled={trashed} />
               <div className="rounded-md border border-line p-3">
                 <p className="text-xs text-muted">Pratinjau hasil pencarian</p>
-                <p className="mt-1 truncate text-[1.05rem] text-[#1a0dab]">{fields.seoTitle || fields.title || "Judul artikel"}</p>
-                <p className="truncate text-xs text-emerald-800">sumenep.matamaduranews.com/artikel/{fields.slug}</p>
-                <p className="line-clamp-2 text-sm text-muted">{fields.seoDescription || fields.standfirst || "Meta description…"}</p>
+                <p className="mt-1 truncate text-[1.05rem] text-[#1a0dab]">{seoPreview.displayTitle}</p>
+                <p className="truncate text-xs text-emerald-800">{SITE_PUBLIC_HOST}{seoPreview.articlePath}</p>
+                <p className="line-clamp-2 text-sm text-muted">{seoPreview.displayDescription}</p>
               </div>
+              <div className="overflow-hidden rounded-md border border-line bg-warm/40">
+                <p className="border-b border-line px-3 py-1.5 text-xs text-muted">Pratinjau berbagi media sosial (Open Graph)</p>
+                {seoPreview.ogImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={seoPreview.ogImage.src} alt={seoPreview.ogImage.alt || seoPreview.displayTitle} className="aspect-[1.91/1] w-full bg-warm object-cover" />
+                ) : (
+                  <div className="flex aspect-[1.91/1] w-full items-center justify-center bg-warm text-xs text-muted">
+                    Belum ada gambar Open Graph / utama
+                  </div>
+                )}
+                <div className="space-y-0.5 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{SITE_PUBLIC_HOST}</p>
+                  <p className="line-clamp-1 text-sm font-semibold text-ink">{seoPreview.displayTitle}</p>
+                  <p className="line-clamp-2 text-xs text-muted">{seoPreview.displayDescription}</p>
+                </div>
+              </div>
+              <dl className="space-y-1 rounded-md bg-warm/60 px-3 py-2 text-xs">
+                <div className="flex justify-between gap-2">
+                  <dt className="text-muted">Canonical</dt>
+                  <dd className="min-w-0 truncate font-mono text-[11px] text-ink" title={seoPreview.canonicalDisplay}>
+                    {seoPreview.canonicalDisplay}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-muted">Schema NewsArticle</dt>
+                  <dd className="truncate font-semibold text-ink">{selectedKanal} &middot; {selectedAuthor}</dd>
+                </div>
+              </dl>
               <SeoPanel input={seoInput} onField={focusField} />
-            </section>
+            </SettingsSection>
 
             {props.revisions.length > 0 && (
-              <section className="admin-card" aria-labelledby="revisi">
-                <h2 id="revisi" className="font-display flex items-center gap-2 text-lg font-semibold"><History className="size-4" aria-hidden /> Revisi</h2>
-                <ul className="mt-2 divide-y divide-line text-sm">
+              <SettingsSection title="Revisi" summary={`${props.revisions.length} riwayat versi tersimpan`}>
+                <ul className="divide-y divide-line text-sm">
                   {props.revisions.map((r) => (
                     <li key={r.id} className="flex items-center justify-between gap-2 py-2">
                       <span>{REASON[r.reason] ?? r.reason} · v{r.version}<br /><span className="text-xs text-muted">{formatWib(new Date(r.createdAt))}</span></span>
@@ -695,7 +788,7 @@ function Editor(props: EditorProps) {
                     </li>
                   ))}
                 </ul>
-              </section>
+              </SettingsSection>
             )}
           </aside>
         </div>
@@ -810,8 +903,7 @@ function HeroPanel({ heroId, onChange, disabled, error }: { heroId: string; onCh
   }
 
   return (
-    <section className="admin-card space-y-3" aria-labelledby="gambar-utama-judul">
-      <h2 id="gambar-utama-judul" className="font-display text-lg font-semibold">Gambar utama</h2>
+    <div className="space-y-3">
       {hero ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={hero.src} alt={hero.alt} className="aspect-video w-full rounded-md bg-warm object-cover" />
@@ -840,7 +932,7 @@ function HeroPanel({ heroId, onChange, disabled, error }: { heroId: string; onCh
           </p>
         </fieldset>
       )}
-    </section>
+    </div>
   );
 }
 
