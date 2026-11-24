@@ -41,6 +41,7 @@ export type AdminNavEntry = AdminNavLink | AdminNavGroup;
 // Aktivitas Redaksi, Pengaturan) tinggal menambahkan entri di sini saat rutenya siap.
 export const ADMIN_NAV: readonly AdminNavEntry[] = [
   { href: "/admin", label: "Dashboard", icon: "dashboard", exact: true },
+  { href: "/admin/statistik", label: "Statistik", icon: "trending" },
   {
     label: "Berita",
     icon: "newspaper",

@@ -12,6 +12,7 @@ describe("admin sidebar navigation", () => {
     const hrefs = allLinks().map((l) => l.href);
     assert.deepEqual(hrefs, [
       "/admin",
+      "/admin/statistik",
       "/admin/artikel/baru",
       "/admin/artikel",
       "/admin/media",
@@ -63,6 +64,7 @@ describe("admin sidebar navigation", () => {
     const links = allLinks();
     for (const path of [
       "/admin",
+      "/admin/statistik",
       "/admin/artikel",
       "/admin/artikel/baru",
       "/admin/artikel/11111111-1111-4111-8111-111111111111",
