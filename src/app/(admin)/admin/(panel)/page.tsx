@@ -1,4 +1,14 @@
-import { CalendarClock, FilePlus2, Newspaper, PenLine, ShieldCheck } from "lucide-react";
+import {
+  CalendarClock,
+  FilePlus2,
+  FolderOpen,
+  History,
+  Newspaper,
+  PenLine,
+  Settings,
+  ShieldCheck,
+  TrendingUp,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -30,6 +40,30 @@ const QUICK_LINKS = [
     label: "Lanjutkan draf",
     description: "Tulisan yang belum diterbitkan",
     icon: PenLine,
+  },
+  {
+    href: "/admin/statistik",
+    label: "Statistik Redaksi",
+    description: "Tren terbit & Search Console",
+    icon: TrendingUp,
+  },
+  {
+    href: "/admin/media",
+    label: "Media Library",
+    description: "Kelola foto & folder media",
+    icon: FolderOpen,
+  },
+  {
+    href: "/admin/aktivitas",
+    label: "Aktivitas & Audit",
+    description: "Jejak aksi & riwayat login",
+    icon: History,
+  },
+  {
+    href: "/admin/pengaturan",
+    label: "Pengaturan CMS",
+    description: "Identitas situs & kurasi beranda",
+    icon: Settings,
   },
   {
     href: "/admin/akun",
@@ -127,9 +161,11 @@ export default async function DashboardPage() {
                 Ukuran tersimpan: {formatBytes(media.totalBytes)}
               </p>
             </div>
-            <p className="mt-3 text-xs text-muted">
-              Unggahan gambar WebP yang tercatat di database.
-            </p>
+            <div className="mt-3 text-sm font-semibold">
+              <Link href="/admin/media" className="text-brand underline-offset-4 hover:underline">
+                Kelola Media Library →
+              </Link>
+            </div>
           </article>
 
           <article className="admin-card flex flex-col justify-between" aria-labelledby="kpi-struktur">
@@ -148,9 +184,12 @@ export default async function DashboardPage() {
                 {authors.total > authors.active ? ` dari ${num.format(authors.total)} terdaftar` : ""}
               </p>
             </div>
-            <div className="mt-3 text-sm font-semibold">
-              <Link href="/admin/artikel" className="text-brand underline-offset-4 hover:underline">
-                Semua artikel →
+            <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold">
+              <Link href="/admin/seksi" className="text-brand underline-offset-4 hover:underline">
+                Kanal &amp; Rubrik →
+              </Link>
+              <Link href="/admin/penulis" className="text-muted underline-offset-4 hover:text-ink hover:underline">
+                Penulis →
               </Link>
             </div>
           </article>
@@ -200,9 +239,14 @@ export default async function DashboardPage() {
             Keamanan
           </h2>
           <p className="mt-2 text-sm">Login gagal 24 jam terakhir: {num.format(security.failedLogins24h)}</p>
-          <Link href="/admin/akun" className="mt-1 inline-block text-sm font-semibold text-brand underline-offset-4 hover:underline">
-            Akun & Keamanan →
-          </Link>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold">
+            <Link href="/admin/akun" className="text-brand underline-offset-4 hover:underline">
+              Akun &amp; Keamanan →
+            </Link>
+            <Link href="/admin/aktivitas" className="text-muted underline-offset-4 hover:text-ink hover:underline">
+              Log Aktivitas &amp; Login →
+            </Link>
+          </div>
         </section>
       </div>
 
@@ -270,9 +314,14 @@ export default async function DashboardPage() {
 
       {/* Aktivitas terbaru (dipertahankan penuh dari dashboard SUMENEP) */}
       <section className="admin-card mt-6" aria-labelledby="aktivitas">
-        <h2 id="aktivitas" className="font-display text-xl font-semibold">
-          Aktivitas terbaru
-        </h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="aktivitas" className="font-display text-xl font-semibold">
+            Aktivitas terbaru
+          </h2>
+          <Link href="/admin/aktivitas" className="text-sm font-semibold text-brand underline-offset-4 hover:underline">
+            Semua aktivitas →
+          </Link>
+        </div>
         {activity.length === 0 ? (
           <p className="mt-3 text-sm text-muted">Belum ada catatan aktivitas.</p>
         ) : (
