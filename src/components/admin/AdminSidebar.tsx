@@ -118,8 +118,8 @@ export function AdminSidebar({ admin }: AdminSidebarProps) {
         }`}
       >
         <div className="flex h-16 items-center justify-between gap-2 border-b border-line px-4">
-          <Link href="/admin" className="flex min-w-0 items-center gap-2.5" aria-label="Dashboard CMS">
-            <Logo variant="sumenep-matamadura-horizontal" eager alt="" className="h-auto w-36 shrink-0" />
+          <Link href="/admin" className="flex min-w-0 items-center gap-2 lg:gap-2.5" aria-label="Dashboard CMS">
+            <Logo variant="sumenep-matamadura-horizontal" eager alt="" className="h-auto w-28 shrink-0 lg:w-36" />
             <span className="shrink-0 rounded bg-ink px-1.5 py-0.5 text-[0.6875rem] font-semibold tracking-wider text-white uppercase">
               CMS
             </span>

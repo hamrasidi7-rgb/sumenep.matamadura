@@ -10,6 +10,21 @@ const dateTime = new Intl.DateTimeFormat("id-ID", {
   timeZone: "Asia/Jakarta",
 });
 
+const byteDecimal = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 });
+
+/**
+ * Ukuran berkas yang mudah dibaca ("0 B", "420 KB", "2,4 MB").
+ * Diadaptasi dari ukuranTerbaca() Busacare (components/admin/media-library.tsx)
+ * dengan format desimal Indonesia dan pengaman nilai kosong/negatif.
+ */
+export function formatBytes(bytes: number | null | undefined): string {
+  const safe = typeof bytes === "number" && Number.isFinite(bytes) && bytes > 0 ? Math.floor(bytes) : 0;
+  if (safe < 1024) return `${safe} B`;
+  if (safe < 1024 * 1024) return `${Math.round(safe / 1024)} KB`;
+  if (safe < 1024 * 1024 * 1024) return `${byteDecimal.format(safe / (1024 * 1024))} MB`;
+  return `${byteDecimal.format(safe / (1024 * 1024 * 1024))} GB`;
+}
+
 /** "21 Nov 2026, 10.15 WIB" */
 export function formatWib(date: Date | null | undefined): string {
   return date ? `${dateTime.format(date)} WIB` : "–";
