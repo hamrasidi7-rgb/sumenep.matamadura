@@ -80,8 +80,10 @@ function sumenepTables(cwd = process.cwd()): Set<string> {
   return names;
 }
 
-function describeDbError(error: unknown): string {
-  const e = error as { errno?: number; code?: string };
+const FS_ERROR_CODES = new Set(["ENOENT", "EACCES", "EPERM", "EISDIR", "ENOTDIR"]);
+
+export function describeDbError(error: unknown): string {
+  const e = error as { errno?: number; code?: string; syscall?: string; message?: string };
   switch (e.errno) {
     case 1045:
       return "login database ditolak: user atau password database salah";
@@ -95,6 +97,17 @@ function describeDbError(error: unknown): string {
     case 1203:
     case 1226:
       return "batas koneksi database tercapai";
+  }
+  const msg = e.message ?? "";
+  const isSocketConnect = e.syscall === "connect" || /\.sock\b/i.test(msg);
+  const isFsError =
+    !isSocketConnect &&
+    ((typeof e.code === "string" && FS_ERROR_CODES.has(e.code)) || /\bENOENT\b/.test(msg));
+  if (isFsError) {
+    if (msg.includes("query_compiler_bg.wasm")) {
+      return "berkas runtime Prisma (query_compiler_bg.wasm) tidak ditemukan (ENOENT)";
+    }
+    return `berkas runtime tidak ditemukan atau tidak bisa diakses (${e.code ?? "ENOENT"})`;
   }
   return `server database tidak bisa dihubungi (${e.code ?? e.errno ?? "tidak diketahui"})`;
 }
@@ -257,7 +270,8 @@ async function databaseSteps() {
       }
     }
   } catch (e) {
-    step("Data awal/Admin", "error", describeDbError(e) + (e instanceof Error && !(e as { errno?: number }).errno ? `: ${e.message}` : ""));
+    const isKnownDbErrno = typeof (e as { errno?: number }).errno === "number" && (e as { errno: number }).errno > 0;
+    step("Data awal/Admin", "error", describeDbError(e) + (e instanceof Error && !isKnownDbErrno ? `: ${e.message}` : ""));
   } finally {
     await db.$disconnect().catch(() => {});
   }

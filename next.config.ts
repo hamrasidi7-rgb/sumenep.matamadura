@@ -38,6 +38,8 @@ const nextConfig: NextConfig = {
   env: { SUMENEP_BUILD: process.env.SUMENEP_BUILD || buildLabel() },
   outputFileTracingIncludes: {
     "/**": [
+      "./node_modules/.prisma/**/*",
+      "./node_modules/.prisma/client/query_compiler_bg.wasm",
       "./node_modules/prisma/**/*",
       "./node_modules/@prisma/**/*",
       "./node_modules/c12/**/*",
