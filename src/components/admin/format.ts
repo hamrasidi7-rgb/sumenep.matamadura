@@ -84,6 +84,14 @@ const ACTIONS: Record<string, string> = {
   "article.delete": "Artikel dihapus permanen",
   "media.upload": "Gambar diunggah",
   "media.update": "Keterangan gambar diubah",
+  "author.create": "Profil penulis dibuat",
+  "author.update": "Profil penulis diperbarui",
+  "author.toggle": "Status penulis diubah",
+  "author.delete": "Profil penulis dihapus",
+  "section.create": "Kanal/rubrik dibuat",
+  "section.update": "Kanal/rubrik diperbarui",
+  "section.toggle": "Status kanal/rubrik diubah",
+  "section.delete": "Kanal/rubrik dihapus",
 };
 
 export function activityLabel(action: string): string {

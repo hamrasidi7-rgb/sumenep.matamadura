@@ -8,9 +8,16 @@ function allLinks(): AdminNavLink[] {
 }
 
 describe("admin sidebar navigation", () => {
-  test("contains expected Phase 1 routes without multi-user or health modules", () => {
+  test("contains expected CMS routes without multi-user or health modules", () => {
     const hrefs = allLinks().map((l) => l.href);
-    assert.deepEqual(hrefs, ["/admin", "/admin/artikel/baru", "/admin/artikel", "/admin/akun"]);
+    assert.deepEqual(hrefs, [
+      "/admin",
+      "/admin/artikel/baru",
+      "/admin/artikel",
+      "/admin/seksi",
+      "/admin/penulis",
+      "/admin/akun",
+    ]);
     assert.equal(hrefs.includes("/admin/pengguna"), false);
   });
 
@@ -50,9 +57,17 @@ describe("admin sidebar navigation", () => {
     assert.equal(isNavLinkActive("/admin/akuntansi", account), false);
   });
 
-  test("only one link is active at a time across every Phase 1 route", () => {
+  test("only one link is active at a time across every CMS route", () => {
     const links = allLinks();
-    for (const path of ["/admin", "/admin/artikel", "/admin/artikel/baru", "/admin/artikel/11111111-1111-4111-8111-111111111111", "/admin/akun"]) {
+    for (const path of [
+      "/admin",
+      "/admin/artikel",
+      "/admin/artikel/baru",
+      "/admin/artikel/11111111-1111-4111-8111-111111111111",
+      "/admin/seksi",
+      "/admin/penulis",
+      "/admin/akun",
+    ]) {
       const active = links.filter((l) => isNavLinkActive(path, l));
       assert.equal(active.length, 1, `expected exactly one active link for ${path}, got ${active.map((a) => a.href).join(", ")}`);
     }
