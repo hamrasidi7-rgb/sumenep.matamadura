@@ -75,10 +75,27 @@ export function canonicalDatabaseUrl(parts: DatabaseParts, hostinger = onHosting
   return `mysql://${auth}@${host}:${parts.port}/${encodeURIComponent(parts.database)}${ssl ? "?ssl=true" : ""}`;
 }
 
-/** DATABASE_URL of the web app, canonicalised; throws a value-free message when missing or unreadable. */
+const first = (env: Record<string, string | undefined>, names: string[]) => names.map((n) => env[n]).find((v) => v !== undefined && v.trim() !== "");
+
+/** The separate-variable style of Hostinger's Node.js guides (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME), when DATABASE_URL is absent. */
+export function databasePartsFromEnv(env: Record<string, string | undefined>): DatabaseParts | null {
+  const user = first(env, ["DB_USER", "DB_USERNAME", "DATABASE_USER", "DATABASE_USERNAME", "MYSQL_USER"])?.trim();
+  const password = first(env, ["DB_PASSWORD", "DB_PASS", "DATABASE_PASSWORD", "MYSQL_PASSWORD"]);
+  const database = first(env, ["DB_NAME", "DB_DATABASE", "DATABASE_NAME", "MYSQL_DATABASE"])?.trim();
+  if (!user || !password || !database) return null;
+  const [host, portInHost] = (first(env, ["DB_HOST", "DATABASE_HOST", "MYSQL_HOST"])?.trim() || "localhost").split(":");
+  const port = Number(first(env, ["DB_PORT", "DATABASE_PORT", "MYSQL_PORT"])?.trim() || portInHost || 3306);
+  return { user, password, host, port: Number.isInteger(port) && port > 0 ? port : 3306, database, ssl: false };
+}
+
+/** DATABASE_URL of the web app (or DB_HOST/DB_USER/DB_PASSWORD/DB_NAME), canonicalised; value-free errors. */
 export function runtimeDatabaseUrl(env: Record<string, string | undefined> = process.env, hostinger = onHostinger()): string {
   const raw = env.DATABASE_URL?.trim();
-  if (!raw) throw new Error("DATABASE_URL belum diisi.");
+  if (!raw) {
+    const parts = databasePartsFromEnv(env);
+    if (parts) return canonicalDatabaseUrl(parts, hostinger);
+    throw new Error("DATABASE_URL belum diisi (atau DB_HOST, DB_USER, DB_PASSWORD, DB_NAME).");
+  }
   const parts = parseDatabaseUrl(raw);
   if (!parts.user) throw new Error(`DATABASE_URL tidak memuat nama user (${FORMAT})`);
   if (!parts.database) throw new Error(`DATABASE_URL tidak memuat nama database (${FORMAT})`);

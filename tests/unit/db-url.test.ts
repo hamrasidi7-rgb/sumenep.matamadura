@@ -41,6 +41,17 @@ describe("DATABASE_URL from a hosting panel", () => {
     assert.equal(onHostinger("C:\\Users\\redaksi"), false);
   });
 
+  test("without DATABASE_URL, Hostinger-style DB_HOST/DB_USER/DB_PASSWORD/DB_NAME are used", () => {
+    const env = { DB_HOST: "localhost", DB_USER: "u123456789_cms", DB_PASSWORD: "Ab@#/9 x", DB_NAME: "u123456789_sumenep" };
+    const url = runtimeDatabaseUrl(env, false);
+    assert.equal(url, `mysql://u123456789_cms:${encodeURIComponent("Ab@#/9 x")}@127.0.0.1:3306/u123456789_sumenep`);
+    assert.equal(poolConfig(url).password, "Ab@#/9 x");
+    assert.equal(runtimeDatabaseUrl({ ...env, DB_HOST: "srv123.hstgr.io:3307" }, true), url.replace(":3306/", ":3307/"));
+    // DATABASE_URL wins when both are present; an incomplete set is not enough.
+    assert.match(runtimeDatabaseUrl({ ...env, DATABASE_URL: "mysql://a:b@localhost/c" }, false), /^mysql:\/\/a:b@127\.0\.0\.1:3306\/c$/);
+    assert.throws(() => runtimeDatabaseUrl({ DB_USER: "u", DB_NAME: "d" }, false), /DATABASE_URL belum diisi/);
+  });
+
   test("broken or incomplete values are refused without echoing the password", () => {
     const secret = "JanganTampil#123";
     const cases: Array<[string, RegExp]> = [
