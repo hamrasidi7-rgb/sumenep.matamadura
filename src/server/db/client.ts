@@ -49,6 +49,8 @@ export function poolConfig(url: string, options: ClientOptions = {}): PoolConfig
   const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
   if (!database) throw new Error("Nama database tidak ada di connection string.");
   const ssl = (parsed.searchParams.get("ssl") ?? parsed.searchParams.get("sslmode") ?? "").toLowerCase();
+  // ?socket=/path: local Unix socket (Prisma's URL syntax), for accounts that only accept 'user'@'localhost'.
+  const socket = parsed.searchParams.get("socket");
   return {
     host: parsed.hostname,
     port: parsed.port ? Number(parsed.port) : 3306,
@@ -58,7 +60,8 @@ export function poolConfig(url: string, options: ClientOptions = {}): PoolConfig
     connectionLimit: options.max ?? 5,
     connectTimeout: 10_000,
     initSql: SESSION_SETUP_SQL,
-    ...(TRUE.has(ssl) ? { ssl: { rejectUnauthorized: true } } : {}),
+    ...(socket ? { socketPath: socket } : {}),
+    ...(TRUE.has(ssl) && !socket ? { ssl: { rejectUnauthorized: true } } : {}),
   };
 }
 

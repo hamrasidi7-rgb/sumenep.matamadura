@@ -17,13 +17,14 @@
 // ("[sumenep-setup]") dan di /api/status tanpa nilai rahasia.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import mariadb from "mariadb";
 
 import { adminExists, bootstrapAdmin } from "@/server/admin/bootstrap";
 import { createPrismaClient, poolConfig, SESSION_SETUP_SQL } from "@/server/db/client";
-import { parseDatabaseUrl, runtimeDatabaseUrl } from "@/server/db/url";
+import { canonicalDatabaseUrl, configuredDatabaseParts, effectiveHost, type DatabaseParts, runtimeDatabaseUrl } from "@/server/db/url";
 import { resolveStorageSelection } from "@/server/media/storage";
 import { seedInitialData } from "@/server/seed";
 import { adminBootstrapSchema, firstIssue } from "@/server/validation/admin";
@@ -63,11 +64,11 @@ function describeDbError(error: unknown): string {
   const e = error as { errno?: number; code?: string };
   switch (e.errno) {
     case 1045:
-      return "login database ditolak: user atau password di DATABASE_URL salah";
+      return "login database ditolak: user atau password database salah";
     case 1044:
-      return "user database tidak punya akses ke database yang ditulis di DATABASE_URL";
+      return "user database tidak punya akses ke database itu";
     case 1049:
-      return "nama database di DATABASE_URL tidak ada";
+      return "nama database tidak ada";
     case 1130:
       return "server database menolak koneksi dari aplikasi ini";
     case 1040:
@@ -106,31 +107,83 @@ function migrateDeploy(url: string): Promise<{ ok: boolean; note: string }> {
   });
 }
 
+// Where MariaDB's local socket usually lives. Some hosting accounts only accept
+// 'user'@'localhost', which matches a socket connection but not TCP from 127.0.0.1.
+const SOCKETS = ["/var/lib/mysql/mysql.sock", "/run/mysqld/mysqld.sock", "/var/run/mysqld/mysqld.sock", "/tmp/mysql.sock"];
+
+async function listTables(url: string): Promise<string[]> {
+  const { host, port, user, password, database, ssl, socketPath } = poolConfig(url);
+  const conn = await mariadb.createConnection({ host, port, user, password, database, ssl, socketPath, connectTimeout: 15_000 });
+  try {
+    await conn.query(SESSION_SETUP_SQL);
+    const rows: Array<{ name: string }> = await conn.query("SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()");
+    return rows.map((r) => String(r.name));
+  } finally {
+    await conn.end().catch(() => {});
+  }
+}
+
+/** Value-free hints for a refused login: what the server saw, and common typing mistakes. */
+function loginHints(error: unknown, parts: DatabaseParts, socketsTried: number): string {
+  const hints: string[] = [];
+  const e = error as { sqlMessage?: string; message?: string };
+  const seen = /'[^']*'@'([^']*)'.*using password: (YES|NO)/i.exec(e.sqlMessage ?? e.message ?? "");
+  if (seen) hints.push(`server melihat koneksi dari ${seen[1]}, password ${seen[2].toUpperCase() === "YES" ? "dikirim" : "TIDAK dikirim"}`);
+  if (parts.password !== parts.password.trim()) hints.push("password diawali atau diakhiri spasi");
+  if (parts.user !== parts.user.trim()) hints.push("nama user diawali atau diakhiri spasi");
+  try {
+    const account = os.userInfo().username;
+    if (/^u\d+$/.test(account)) {
+      if (!parts.user.startsWith(`${account}_`)) hints.push("nama user database tidak diawali nama akun hosting");
+      if (!parts.database.startsWith(`${account}_`)) hints.push("nama database tidak diawali nama akun hosting");
+    }
+  } catch {
+    // no account name available: skip the prefix hints
+  }
+  hints.push(socketsTried ? `jalur socket lokal juga dicoba (${socketsTried}) dan ditolak` : "tidak ada socket lokal untuk dicoba");
+  return ` (${hints.join("; ")})`;
+}
+
 async function databaseSteps() {
   let url: string;
+  let parts: DatabaseParts;
   try {
     url = runtimeDatabaseUrl();
-    const parts = parseDatabaseUrl(url);
+    parts = configuredDatabaseParts()!;
     hide = [parts.database, parts.user];
   } catch (e) {
     step("Konfigurasi database", "error", e instanceof Error ? e.message : String(e));
     return;
   }
 
-  let tables: string[];
+  let tables: string[] | null = null;
+  let route = "";
   try {
-    const { host, port, user, password, database, ssl } = poolConfig(url);
-    const conn = await mariadb.createConnection({ host, port, user, password, database, ssl, connectTimeout: 15_000 });
-    try {
-      await conn.query(SESSION_SETUP_SQL);
-      const rows: Array<{ name: string }> = await conn.query("SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()");
-      tables = rows.map((r) => String(r.name));
-    } finally {
-      await conn.end().catch(() => {});
+    tables = await listTables(url);
+  } catch (firstError) {
+    const refused = [1045, 1130].includes((firstError as { errno?: number }).errno ?? 0);
+    const local = !parts.socket && effectiveHost(parts.host) === "127.0.0.1";
+    const sockets = refused && local ? SOCKETS.filter((s) => fs.existsSync(s)) : [];
+    for (const socket of sockets) {
+      const candidate = canonicalDatabaseUrl({ ...parts, socket });
+      try {
+        tables = await listTables(candidate);
+        url = candidate;
+        route = "lewat socket lokal; ";
+        // The web app's own client (src/server/db/index.ts) follows the same route from now on.
+        process.env.DB_SOCKET = socket;
+        const cached = globalThis as unknown as { sumenepDb?: { $disconnect(): Promise<void> } };
+        await cached.sumenepDb?.$disconnect().catch(() => {});
+        cached.sumenepDb = undefined;
+        break;
+      } catch {
+        // try the next socket
+      }
     }
-  } catch (e) {
-    step("Koneksi database", "error", describeDbError(e));
-    return;
+    if (!tables) {
+      step("Koneksi database", "error", describeDbError(firstError) + (refused ? loginHints(firstError, parts, sockets.length) : ""));
+      return;
+    }
   }
   const own = sumenepTables();
   const foreign = tables.filter((t) => !own.has(t));
@@ -138,7 +191,7 @@ async function databaseSteps() {
     step("Koneksi database", "error", `database berisi ${foreign.length} tabel yang bukan milik SUMENEP (mungkin database WordPress); setup database dihentikan tanpa mengubah apa pun`);
     return;
   }
-  step("Koneksi database", "ok", tables.length ? `terhubung; ${tables.length} tabel SUMENEP` : "terhubung; database masih kosong");
+  step("Koneksi database", "ok", `terhubung; ${route}${tables.length ? `${tables.length} tabel SUMENEP` : "database masih kosong"}`);
 
   const migrate = await migrateDeploy(url);
   step("Migrasi", migrate.ok ? "ok" : "error", migrate.note);

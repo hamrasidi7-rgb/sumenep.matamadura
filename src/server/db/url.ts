@@ -13,6 +13,8 @@ export interface DatabaseParts {
   port: number;
   database: string;
   ssl: boolean;
+  /** Local Unix socket instead of TCP (Prisma URL syntax ?socket=). */
+  socket?: string;
 }
 
 const FORMAT = "format: mysql://user:password@host:3306/nama_database";
@@ -49,6 +51,7 @@ export function parseDatabaseUrl(raw: string): DatabaseParts {
     port: location[2] ? Number(location[2]) : 3306,
     database: decodeLoose(location[3] ?? ""),
     ssl: TRUE.has((params.get("ssl") ?? params.get("sslmode") ?? "").toLowerCase()),
+    ...(params.get("socket") ? { socket: params.get("socket")! } : {}),
   };
 }
 
@@ -69,10 +72,21 @@ export function effectiveHost(host: string, hostinger = onHostinger()): string {
 }
 
 export function canonicalDatabaseUrl(parts: DatabaseParts, hostinger = onHostinger()): string {
+  const auth = `${encodeURIComponent(parts.user)}:${encodeURIComponent(parts.password)}`;
+  const database = encodeURIComponent(parts.database);
+  if (parts.socket) return `mysql://${auth}@localhost/${database}?socket=${encodeURIComponent(parts.socket).replace(/%2F/gi, "/")}`;
   const host = effectiveHost(parts.host, hostinger);
   const ssl = parts.ssl && host !== "127.0.0.1";
-  const auth = `${encodeURIComponent(parts.user)}:${encodeURIComponent(parts.password)}`;
-  return `mysql://${auth}@${host}:${parts.port}/${encodeURIComponent(parts.database)}${ssl ? "?ssl=true" : ""}`;
+  return `mysql://${auth}@${host}:${parts.port}/${database}${ssl ? "?ssl=true" : ""}`;
+}
+
+/** The parts of the configured database (DATABASE_URL, else DB_*), plus DB_SOCKET when set. Null when not configured. */
+export function configuredDatabaseParts(env: Record<string, string | undefined> = process.env): DatabaseParts | null {
+  const raw = env.DATABASE_URL?.trim();
+  const parts = raw ? parseDatabaseUrl(raw) : databasePartsFromEnv(env);
+  if (!parts) return null;
+  const socket = env.DB_SOCKET?.trim();
+  return socket && !parts.socket ? { ...parts, socket } : parts;
 }
 
 const first = (env: Record<string, string | undefined>, names: string[]) => names.map((n) => env[n]).find((v) => v !== undefined && v.trim() !== "");
@@ -90,13 +104,8 @@ export function databasePartsFromEnv(env: Record<string, string | undefined>): D
 
 /** DATABASE_URL of the web app (or DB_HOST/DB_USER/DB_PASSWORD/DB_NAME), canonicalised; value-free errors. */
 export function runtimeDatabaseUrl(env: Record<string, string | undefined> = process.env, hostinger = onHostinger()): string {
-  const raw = env.DATABASE_URL?.trim();
-  if (!raw) {
-    const parts = databasePartsFromEnv(env);
-    if (parts) return canonicalDatabaseUrl(parts, hostinger);
-    throw new Error("DATABASE_URL belum diisi (atau DB_HOST, DB_USER, DB_PASSWORD, DB_NAME).");
-  }
-  const parts = parseDatabaseUrl(raw);
+  const parts = configuredDatabaseParts(env);
+  if (!parts) throw new Error("DATABASE_URL belum diisi (atau DB_HOST, DB_USER, DB_PASSWORD, DB_NAME).");
   if (!parts.user) throw new Error(`DATABASE_URL tidak memuat nama user (${FORMAT})`);
   if (!parts.database) throw new Error(`DATABASE_URL tidak memuat nama database (${FORMAT})`);
   return canonicalDatabaseUrl(parts, hostinger);

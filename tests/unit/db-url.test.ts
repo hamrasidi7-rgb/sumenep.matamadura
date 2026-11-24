@@ -52,6 +52,17 @@ describe("DATABASE_URL from a hosting panel", () => {
     assert.throws(() => runtimeDatabaseUrl({ DB_USER: "u", DB_NAME: "d" }, false), /DATABASE_URL belum diisi/);
   });
 
+  test("a local socket (DB_SOCKET or ?socket=) replaces TCP for both the app pool and Prisma", () => {
+    const env = { DB_USER: "u1_cms", DB_PASSWORD: "p@ss word", DB_NAME: "u1_sumenep", DB_SOCKET: "/var/lib/mysql/mysql.sock" };
+    const url = runtimeDatabaseUrl(env, true);
+    assert.equal(url, `mysql://u1_cms:${encodeURIComponent("p@ss word")}@localhost/u1_sumenep?socket=/var/lib/mysql/mysql.sock`);
+    const config = poolConfig(url);
+    assert.equal(config.socketPath, "/var/lib/mysql/mysql.sock");
+    assert.equal(config.password, "p@ss word");
+    assert.equal(parseDatabaseUrl(url).socket, "/var/lib/mysql/mysql.sock");
+    assert.equal(poolConfig("mysql://u:p@127.0.0.1:3306/db").socketPath, undefined);
+  });
+
   test("broken or incomplete values are refused without echoing the password", () => {
     const secret = "JanganTampil#123";
     const cases: Array<[string, RegExp]> = [
