@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, test } from "node:test";
 
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 
 import {
   buildMediaUrl,
+  defaultProductionMediaRoot,
+  LocalStorage,
   normalizePublicMediaBase,
   parseS3Config,
+  productionMediaRoot,
   resolveStorageSelection,
   S3Storage,
   type S3CommandSender,
@@ -22,15 +28,47 @@ const VALID_S3_ENV = {
 };
 
 describe("media storage configuration", () => {
-  test("production refuses LocalStorage even if MEDIA_DRIVER=local is requested", () => {
-    assert.throws(
-      () => resolveStorageSelection({ NODE_ENV: "production", MEDIA_DRIVER: "local" }),
-      /Cloudflare R2.*LocalStorage dilarang di production/,
-    );
-    assert.throws(
-      () => resolveStorageSelection({ NODE_ENV: "production" }),
-      /Cloudflare R2/,
-    );
+  const app = path.resolve(os.tmpdir(), "sumenep-app");
+  const outside = path.resolve(os.tmpdir(), "sumenep-media");
+
+  test("production uses the local disk, in an absolute MEDIA_ROOT outside the app directory", () => {
+    const selection = resolveStorageSelection({ NODE_ENV: "production", MEDIA_ROOT: outside }, app);
+    assert.deepEqual(selection, { driver: "local", root: outside });
+    // Stray S3 variables never switch production to a bucket: only MEDIA_DRIVER=s3 does.
+    const stray = resolveStorageSelection({ NODE_ENV: "production", MEDIA_ROOT: outside, S3_ENDPOINT: "https://x.r2.cloudflarestorage.com" }, app);
+    assert.equal(stray.driver, "local");
+  });
+
+  test("production without MEDIA_ROOT uses ~/sumenep-data/media (outside every deploy folder)", () => {
+    assert.deepEqual(resolveStorageSelection({ NODE_ENV: "production" }, app), {
+      driver: "local",
+      root: path.join(os.homedir(), "sumenep-data", "media"),
+    });
+    assert.equal(defaultProductionMediaRoot("/home/u123456789"), path.join("/home/u123456789", "sumenep-data", "media"));
+  });
+
+  test("production refuses a relative, in-app or .next MEDIA_ROOT", () => {
+    assert.throws(() => resolveStorageSelection({ NODE_ENV: "production", MEDIA_ROOT: "media" }, app), /path absolut/);
+    assert.throws(() => resolveStorageSelection({ NODE_ENV: "production", MEDIA_ROOT: path.join(app, "media") }, app), /di dalam direktori aplikasi/);
+    assert.throws(() => resolveStorageSelection({ NODE_ENV: "production", MEDIA_ROOT: app }, app), /di dalam direktori aplikasi/);
+    assert.throws(() => productionMediaRoot(path.join(outside, ".next", "media"), app), /\.next/);
+  });
+
+  test("LocalStorage keeps every file inside MEDIA_ROOT and survives a new instance (restart)", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "sumenep-media-unit-"));
+    try {
+      const key = "2026/11/0123456789abcdef.webp";
+      await new LocalStorage(root).put(key, Buffer.from("webp"));
+      assert.equal((await new LocalStorage(root).get(key))?.toString(), "webp", "a fresh instance reads what an earlier one wrote");
+      await assert.rejects(() => new LocalStorage(root).put("../../evil.webp", Buffer.from("x")), /Kunci media tidak valid/);
+      assert.equal(await new LocalStorage(root).get("../../etc/passwd"), null, "an invalid key reads nothing");
+      const leftovers = (await fs.readdir(path.join(root, "2026", "11"))).filter((f) => f.endsWith(".tmp"));
+      assert.deepEqual(leftovers, [], "no temporary files left behind");
+      await new LocalStorage(root).remove(key);
+      assert.equal(await new LocalStorage(root).get(key), null);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 
   test("incomplete S3 credentials fail clearly without leaking secret values", () => {
@@ -51,7 +89,7 @@ describe("media storage configuration", () => {
     );
   });
 
-  test("auto-detects S3/R2 in production and defaults region to auto", () => {
+  test("optional S3/R2 driver only with MEDIA_DRIVER=s3; region defaults to auto", () => {
     const selection = resolveStorageSelection(VALID_S3_ENV);
     assert.equal(selection.driver, "s3");
     if (selection.driver !== "s3") return;

@@ -2,196 +2,246 @@
 
 Dokumen acuan wajib bagi **Fase 5 dan seluruh fase berikutnya** pada **`sumenep.matamaduranews.com`** (*SUMENEP – Mata Madura*).
 
-Status implementasi di branch **`release/fase-4-production`** (23 November 2026):
-- Integrasi **Fase 4 (CMS Artikel + TipTap + Media + Pratinjau)** dengan perbaikan **Fase 3** (tombol mata password `/admin/login`), konflik dependensi/`package-lock.json`, `postinstall: prisma generate`, serta adapter **Cloudflare R2 (`@aws-sdk/client-s3`)** sudah selesai di kode dan teruji.
-- Layanan eksternal produksi (**Neon PostgreSQL Launch Singapore**, bucket/token **Cloudflare R2**, serta panel/deploy **Hostinger Web Apps**) **belum aktif/belum dieksekusi** karena credential akun berada di tangan pemilik.
+## Status (24 November 2026, Tahap D)
 
-### Status produksi teramati (24 November 2026, `npm run prod:smoke`)
-
-- `origin/main` = `e4e38bf` (sama dengan `release/fase-4-production`) dan **kode Fase 4 sudah berjalan di production**: tombol mata di `/admin/login` dan rute `/media/[...key]` sudah ada. Teramati: push ke `main` langsung ter-deploy (lihat §4).
-- **PostgreSQL belum terhubung:** `/api/admin/me` dengan token sesi acak menjawab `500` (seharusnya `401`). Login Admin belum bisa dipakai.
-- **Media R2 belum siap:** `/media/<key acak>` menjawab `500` (seharusnya `404`).
-- Beranda, halaman artikel seed, `robots.txt` (`Disallow: /`), proteksi `/admin`, penolakan lintas-origin, dan website induk normal.
-- Tindakan berikutnya ada di §8.4: semuanya memerlukan akun pemilik.
+- **Keputusan pemilik:** seluruh backend memakai langganan **Hostinger Business Web Hosting** yang sudah ada: Node.js 22, **MariaDB Hostinger**, dan **disk Hostinger** untuk media. **Tidak** memakai Neon PostgreSQL maupun Cloudflare R2, dan tidak membeli layanan tambahan.
+- **Kode:** branch `migration/hostinger-mysql` (lokal, belum di-commit/push). Tahap B dan C selesai; rincian dan hasil uji: [10-migrasi-mariadb.md](10-migrasi-mariadb.md).
+- **Production saat ini** (`origin/main` = `e4e38bf`): kode Fase 4 versi PostgreSQL, database dan media belum tersambung (halaman publik normal, login Admin belum bisa dipakai).
+- **Tahap D:** alat dan prosedur siap (§8–§11). Server Hostinger: **MariaDB 11.8.9** (seluruh pengujian diulang pada versi ini), TLS didukung, SSH 65002 terbuka.
+- **Jalur deploy yang dipakai (keputusan pemilik, 24 November 2026): tanpa SSH.** Pemilik hanya mengisi `DATABASE_URL`, `ADMIN_EMAIL`, dan `ADMIN_PASSWORD` di Environment variables. Saat server start, aplikasi sendiri yang menyiapkan database dan folder media (§8). Pemeriksaan lewat SSH (§11) menjadi opsional.
 
 ---
 
-## 1. Arsitektur Production Final & Batasan Mutlak
+## 1. Arsitektur Produksi & Batasan Mutlak
 
-| Komponen | Ketentuan Produksi | Lokasi / Keterangan |
+| Komponen | Ketentuan Produksi | Keterangan |
 | --- | --- | --- |
-| **Hosting utama** | **Hostinger Business Web Hosting** (paket aktif bersama website induk) | Singapura (`hpanel`, `Server: hcdn`) |
-| **Website induk** | `matamaduranews.com` (**WordPress + PHP 8.3.37**) | A record teramati `185.124.137.170` & `88.223.91.122`, `X-LiteSpeed-Cache: hit` — **tidak boleh diubah/terganggu** |
-| **Aplikasi SUMENEP** | `sumenep.matamaduranews.com` (**Next.js 16 + React 19 + Node.js**) | A record teramati `88.223.91.58` & `153.92.12.225` (edge `hcdn`), direktori/vhost/env terpisah dari WordPress |
-| **Database CMS** | **Neon Launch PostgreSQL** | AWS Asia Pacific Singapore (`aws-ap-southeast-1`), database khusus SUMENEP |
-| **Media storage** | **Cloudflare R2** (`@aws-sdk/client-s3@3.1175.0`, S3-compatible API) | Bucket khusus SUMENEP (`S3_ENDPOINT`, `S3_BUCKET`, opsional custom domain `R2_PUBLIC_URL`) |
-| **DNS & Nameserver** | Tetap di Hostinger (`ns1.dns-parking.com`, `ns2.dns-parking.com`) | **Tidak diubah** |
+| **Hosting** | Hostinger Business Web Hosting (paket aktif bersama website induk) | Web App Node.js, `Server: hcdn` |
+| **Website induk** | `matamaduranews.com` (WordPress) | **Tidak boleh diubah/terganggu**, termasuk databasenya |
+| **Aplikasi SUMENEP** | `sumenep.matamaduranews.com` (Next.js 16 + React 19, Node.js 22) | Web App terpisah dari WordPress |
+| **Database CMS** | **MariaDB 11.8.9 Hostinger** (`u123456789_sumenep` di `srvNNN.hstgr.io`) | Database khusus SUMENEP. Diuji lokal dengan MariaDB 10.11 dan 11.8.9 |
+| **Media** | **Disk Hostinger**: `/home/<user>/sumenep-data/media` | Di luar folder yang dikelola deployment (§6) |
+| **Backup** | `/home/<user>/sumenep-data/backups` + salinan di luar server | §9 |
+| **DNS & Nameserver** | Tetap di Hostinger | **Tidak diubah** |
 
 **Batasan operasional:**
-- Jangan membeli paket hosting baru atau memigrasikan website ke VPS.
-- Jangan mengubah website induk `matamaduranews.com` maupun record DNS/nameserver tanpa persetujuan pemilik.
-- Jangan memakai database WordPress, database development lokal (`127.0.0.1:54329`), database Busacare, atau database MataGen.
-- Jangan menimpa environment variables website lain atau menyimpan secret ke repository Git, log, screenshot, atau chat.
-- Pertahankan `Disallow: /` di `robots.txt` (`NEXT_PUBLIC_SITE_ENV=staging`) hingga website dinyatakan siap dibuka ke mesin pencari.
+- Jangan membeli paket/layanan baru, jangan memindahkan ke VPS.
+- Jangan mengubah website induk, database WordPress, DNS/nameserver, atau `public_html` website induk.
+- Jangan memakai database WordPress, database development lokal, Busacare, atau MataGen.
+- Jangan menimpa environment variables website lain; jangan menyimpan secret di Git, log, screenshot, atau chat.
+- Pertahankan `Disallow: /` (`NEXT_PUBLIC_SITE_ENV=staging`) sampai peluncuran disetujui.
 
 ---
 
-## 2. Branch & Integrasi Kode Fase 4
+## 2. Branch
 
 | Referensi | Isi & Status |
 | --- | --- |
-| `f62ef97` | Baseline production sebelum Fase 4 (homepage redesain + Fase 2–3, tanpa tombol mata login). Titik rollback, lihat §8.3. |
-| `origin/main` & `main` (`e4e38bf`) | **Sedang berjalan di production** sejak 24 November 2026: fast-forward ke `release/fase-4-production`. |
-| `backend/fase-4-cms-artikel` (`6f49299`) | Branch sumber CMS Artikel (TipTap, upload/crop `sharp`, pratinjau `/pratinjau/[id]`, `/media/[...key]`). |
-| `integrasi/cms-produksi` (`53d68a8`) | Hasil merge bersih Fase 4 ke `f62ef97` setelah konflik `package-lock.json` dibereskan. |
-| `release/fase-4-production` | **Branch rilis final Fase 4:** menggabungkan `53d68a8` + tombol mata login Fase 3 (`LoginForm.tsx` & `02-browser.test.ts`) + adapter R2 S3 + `docs/INFRASTRUCTURE.md` + `.env.example` + lockfile bersih. |
+| `f62ef97` | Production sebelum Fase 4 (homepage redesain + Fase 2–3). |
+| `origin/main` = `e4e38bf` | **Sedang berjalan di production**: Fase 4 versi PostgreSQL/R2 (DB & media belum tersambung). Titik rollback Tahap E. |
+| `ops/verifikasi-produksi` (`7399b98`, lokal) | `db:verify` + `prod:smoke` versi PostgreSQL. |
+| `migration/hostinger-mysql` (lokal, belum di-commit) | **Target Tahap E:** MariaDB + media disk. Dibuat dari `7399b98`. |
 
 ---
 
-## 3. Dependensi, Node.js & Kompatibilitas Hostinger Singapore
+## 3. Dependensi & Node.js
 
-### 3.1 Versi Node.js Minimum & Rekomendasi
-
-| Paket | Versi di `release/fase-4-production` | `engines.node` | Keterangan |
-| --- | --- | --- | --- |
-| Proyek | `0.1.0` | `>=20.9.0` | `.nvmrc = 22` |
-| `next` | `16.4.6` | `>=20.9.0` | Build memakai `next build --webpack` |
-| `react` / `react-dom` | `19.3.1` | `>=0.10.0` (react) | App Router + Server Actions |
-| `@prisma/client` & `prisma` | `6.19.3` | `>=18.18` | `engineType = "client"` |
-| `@prisma/adapter-pg` | `6.19.3` | `-` | Pure-JS adapter |
-| `pg` | `8.23.1` | `>= 16.0.0` | Mendukung `sslmode=verify-full` |
-| `sharp` | `0.35.5` | `>=20.9.0` | Prebuild Linux x64/musl tersedia |
-| `@aws-sdk/client-s3` | `3.1175.0` | `>=20.0.0` | Client S3 untuk Cloudflare R2 |
-| `@tiptap/*` | `2.27.3` | `-` | Editor artikel |
-| `lucide-react` / `zod` | `1.66.0` / `4.6.7` | `-` | Ikon UI & validasi |
-
-- **Minimum mutlak:** **Node.js `20.9.0`** (wajib untuk `next@16.4.6` dan `sharp@0.35.5` — Node `20.0.0`–`20.8.x` tidak memenuhi syarat).
-- **Direkomendasikan:** **Node.js `22.x` LTS** (sesuai `.nvmrc` dan lingkungan verifikasi lokal `v22.22.2`).
-
-### 3.2 Penyelesaian Konflik & Clean Install (`npm ci`)
-
-- Konflik `package-lock.json` pada merge Fase 4 diselesaikan dengan lockfile tunggal yang konsisten terhadap `package.json`.
-- Paket yang dibutuhkan pada tahap `npm ci` + `next build` di server Hostinger (`prisma`, `tailwindcss`, `@tailwindcss/postcss`, `typescript`, `@types/node`, `@types/pg`, `@types/react`, `@types/react-dom`) ditempatkan di `dependencies`, dan script `"postinstall": "prisma generate"` ditambahkan agar Prisma Client otomatis terbuat walau `NODE_ENV=production` aktif saat install.
-- `@playwright/test` yang tidak terpakai (seluruh uji memakai `playwright-core`) dihapus dari `dependencies` agar instalasi produksi tetap ramping.
+- **Node.js 22.x** (minimum 20.9.0; `.nvmrc = 22`; default Hostinger juga 22). Build **wajib** `next build --webpack` (Turbopack panic di Hostinger).
+- Database: `prisma` / `@prisma/client` **6.19.3**, `engineType = "client"` (tanpa engine native) + **`@prisma/adapter-mariadb` 6.19.3** + driver **`mariadb` 3.4.5** (JavaScript murni).
+- Media: `sharp` 0.35.5 (binary Linux x64 ada di `package-lock.json`). `@aws-sdk/client-s3` hanya untuk driver S3 **opsional**.
+- Paket build ada di `dependencies`; `postinstall: prisma generate`. **Build tidak butuh database:** `prisma generate` + `next build` lulus tanpa `.env` dan tanpa `DATABASE_URL` (diuji Tahap D).
 
 ---
 
-## 4. Perintah Build, Start & Deployment Hostinger
+## 4. Web App Hostinger: build, deploy, dan perilaku penting
 
-| Pengaturan Hostinger | Nilai | Catatan |
+Konfigurasi (hPanel → Websites → sumenep.matamaduranews.com):
+
+| Pengaturan | Nilai |
+| --- | --- |
+| Framework | Next.js |
+| Branch | `main` (target akhir, hanya setelah persetujuan) |
+| Node.js | `22.x` |
+| Root directory | `./` |
+| Package manager | npm (dideteksi dari `package-lock.json`) |
+| Build | `npm run build` (= `next build --webpack`) |
+| Output | `.next` |
+
+Perilaku yang **dinyatakan dokumentasi Hostinger** (docs.hostinger.com/node.js):
+- **Struktur folder:** `/home/<user>/domains/<domain>/hbuilds/` dikelola deployment (`versions/<build-id>/`, `current` → build aktif, `last-source/`, `config/`, `logs/`), plus `public_html/`. **"Files in hbuilds/ and public_html are overwritten on every deployment."** Hanya build aktif yang disimpan; build lama dihapus.
+- **Push ke branch terhubung = build otomatis.** Build gagal **tidak** mengganti build aktif (situs lama tetap jalan).
+- **Environment variables:** dipakai saat build **dan** runtime, tersimpan terenkripsi, bertahan antar-deploy. **Menyimpan perubahan langsung me-redeploy aplikasi.** Bisa "Import .env".
+- **Tidak ada rollback per-commit:** versi lama dikembalikan dengan revert/reset di Git lalu push.
+- Batas: install dan build masing-masing maks. 15 menit; satu deployment pada satu waktu.
+- Uploads/berkas runtime: **tidak disebut** di dokumentasi → persistensi harus dibuktikan sendiri (§6, §11).
+- Jangan menjalankan `scripts/hostinger.mjs deploy` lama (menimpa seluruh Environment Variables).
+
+---
+
+## 5. Database MariaDB Hostinger
+
+### 5.1 User dan hak akses
+- Menurut dukungan Hostinger, **satu database punya satu user** pada paket Web/Cloud/Agency; hak user itu bisa dikurangi lewat hPanel → Databases → Management → **Change permissions** (tingkat database, bukan per tabel). Akan dipastikan di §11.
+- Maka di Hostinger yang hampir pasti berlaku **mode satu user**: `DATABASE_URL` (Web App) dan `DIRECT_URL` (operator) memakai user yang sama; `DB_APP_USER` dikosongkan.
+- Hak "SELECT + INSERT saja" pada `activity_log` butuh hak **per tabel** untuk user runtime terpisah (`npm run db:grants`, teruji lokal). Bila Hostinger tidak menyediakannya, perlindungan Activity Log = **guard aplikasi** (setiap query Prisma, termasuk SQL mentah) **+ trigger** bila diizinkan.
+- **Opsi pengerasan (usul, butuh persetujuan):** setelah migrasi, cabut hak DDL (`DROP`, `ALTER`, `CREATE`, `INDEX`, `CREATE VIEW`) user lewat "Change permissions". Akibatnya: `TRUNCATE`/`DROP TABLE` dan penghapusan CHECK (mis. aturan satu Admin) tidak bisa lagi, oleh aplikasi maupun SQL apa pun dengan user itu. Untuk migrasi berikutnya hak dikembalikan sementara. `TRIGGER` jangan dicabut bila trigger terpasang (trigger dijalankan atas nama pembuatnya).
+
+### 5.2 Koneksi
+- Format: `mysql://USER:PASSWORD@HOST:3306/DATABASE` (password di-URL-encode). Host dari hPanel ("MySQL host"); dari server sendiri biasanya `localhost`. `?ssl=true` untuk koneksi remote bila didukung.
+- Setiap koneksi `SET time_zone = '+00:00'`; kolom waktu `DATETIME(3)` berisi UTC.
+- Pool aplikasi 5 koneksi (`connectionLimit`); sesuaikan dengan `max_user_connections` hasil §11.
+
+### 5.3 Migrasi dan trigger
+- `20261124020000_init` (17 tabel, 18 FK) dan `20261124020100_integrity_rules` (42 CHECK, singleton). **Tanpa trigger.**
+- Trigger penjaga opsional (`prisma/sql/guard-triggers.sql`) dipasang `npm run db:migrate`/`db:triggers` **hanya** bila host mengizinkan **dan** koneksi dari server sendiri (definer `@localhost`/`%`). Dari Remote MySQL, pemasangan dilewati: definer `user@<IP>` akan membuat semua penulisan gagal bila akses IP itu kelak dihapus.
+- Tempat menjalankan migrasi: **dari komputer operator lewat tunnel SSH** — `node scripts/ops/hostinger-tunnel.mjs -- npm run db:migrate -- --yes`. Tidak butuh Node.js atau salinan repo di server, tidak butuh izin IP Remote MySQL; server melihat koneksi dari localhost sehingga definer trigger stabil. Pembungkus ini menolak perintah reset/hapus database. Alternatif: Remote MySQL (butuh izin IP di hPanel; trigger tidak dipasang dari koneksi remote).
+
+### 5.4 Perintah operator
+```bash
+npm run db:migrate -- --env-file .env.production.local --yes   # migrate deploy + grants (bila ada user runtime) + trigger (bila diizinkan)
+npm run db:seed    -- --env-file .env.production.local --yes   # kanal, rubrik, penulis redaksi (idempoten)
+npm run db:verify  -- --env-file .env.production.local         # read-only
+npm run admin:bootstrap -- --env-file .env.production.local    # password diketik pemilik sendiri
+```
+Tidak ada perintah yang mereset atau menghapus data. `prisma migrate reset` dilarang.
+
+---
+
+## 6. Media di Disk Hostinger
+
+- Lokasi: **`/home/<user>/sumenep-data/media`** — di luar `domains/<domain>/hbuilds/` dan `public_html/` (keduanya ditimpa setiap deployment), tidak bisa diakses langsung dari web.
+- Production **wajib** `MEDIA_ROOT` absolut di luar direktori aplikasi dan `.next`; bila tidak, setiap operasi media ditolak dengan pesan jelas di log dan `prod:smoke` melaporkan Media `500`.
+- Key berkas `YYYY/MM/<16-hex>.webp` dari SHA-256 isi; nama asli tidak pernah dipakai sebagai path; path dicek tetap di dalam `MEDIA_ROOT`; tulis atomik; izin `0640`/`0750`.
+- Upload divalidasi dari **isi** berkas (JPEG/PNG/WebP/AVIF-HEIF/GIF, maks 15 MB, maks 50 MP), EXIF dibuang, disimpan WebP ≤ 2400 px. PDF/SVG ditolak.
+- Hapus: `DELETE /api/admin/media/<id>` (409 bila masih dipakai).
+- **Persistensi:** simulasi lokal lulus (Tahap C). **Bukti di Hostinger belum ada** — prosedur §10.
+
+---
+
+## 7. Environment Variables Produksi
+
+Template tanpa secret, siap "Import .env": [`deploy/hostinger.env.template`](../deploy/hostinger.env.template). **Diisi di Tahap E** (menyimpan = redeploy).
+
+| Variabel | Web App Hostinger | Operator CLI |
 | --- | --- | --- |
-| **Framework** | Next.js | Output `.next` (Node.js server, bukan static export) |
-| **Versi Node.js** | `22.x` (min `20.9.0`) | Sesuai `.nvmrc` |
-| **Install command** | `npm ci` | Otomatis menjalankan `postinstall` (`prisma generate`) |
-| **Build command** | `npm run build` | Menjalankan `next build --webpack` (**wajib `--webpack`** karena Turbopack panic di Hostinger) |
-| **Start command** | `npm start` | Menjalankan `next start` yang membaca `$PORT` Hostinger |
-
-### Jalur Deployment Resmi di Hostinger
-
-1. **Git Deployment via hPanel (Jalur Utama):**
-   - Repository `hamrasidi7-rgb/sumenep.matamadura` **tidak memiliki** `.github/workflows/*` dan tidak memiliki repository webhook (`gh api .../hooks` = `[]`). Namun teramati: setelah push ke `main` (`f62ef97` pada 21 November, `e4e38bf` pada 24 November) versi baru langsung tampil di production, jadi integrasi GitHub Hostinger kemungkinan aktif lewat GitHub App (tidak tampil sebagai webhook). **Perlakukan setiap push ke `main` sebagai deploy production.**
-   - Hubungkan/arahkan Web App `sumenep.matamaduranews.com` di **hPanel → Websites → Web Apps** ke branch rilis yang disetujui (`release/fase-4-production`, atau setelah di-fast-forward ke `main`), lalu picu **Deploy** dari hPanel.
-2. **Hostinger API (`scripts/hostinger.mjs` lama di `main-backup-nov20`):**
-   - Tidak wajib dipakai dan saat ini `.env.hostinger` (`HOSTINGER_API_TOKEN`) kosong.
-   - **Peringatan:** jangan menjalankan `scripts/hostinger.mjs deploy` lama karena menimpa seluruh Environment Variables di Hostinger.
-
----
-
-## 5. Integrasi Neon PostgreSQL & Migrasi Database
-
-- **Driver tanpa engine native:** `prisma/schema.prisma` (`engineType = "client"`) + `@prisma/adapter-pg` + `pg` (`src/server/db/client.ts`), `max: 5` pool, dan handler `onPoolError` / `onConnectionError` untuk menangani auto-suspend compute Neon.
-- **Pemisahan koneksi:**
-  - `DATABASE_URL` (dipasang di **Hostinger hPanel**): memakai endpoint pooler Neon (`-pooler`) dengan role runtime minimum (`DB_APP_ROLE`, mis. `sumenep_app`) + `?schema=public&sslmode=verify-full`.
-  - `DIRECT_URL` + `DB_APP_ROLE` (**hanya di komputer operator**, jangan dipasang di web runtime): memakai endpoint direct (non-pooler) untuk `npm run db:migrate`, `db:grants`, `db:seed`, `admin:bootstrap`, dan `admin:recover`.
-- **Migrasi & integrity rules (`prisma/migrations/`):**
-  - `20261120193912_init`: 17 tabel, 6 enum.
-  - `20261120194038_integrity_rules`: 42 `CHECK`, 7 trigger (termasuk akun Admin tunggal `id = 1` dan `activity_log` append-only).
-  - Eksekusi aman (non-destruktif) dari mesin operator menggunakan file env sementara yang segera dihapus setelah selesai:
-    ```bash
-    npm run db:migrate -- --env-file .env.production.local --yes
-    npm run db:seed -- --env-file .env.production.local --yes
-    npm run db:verify -- --env-file .env.production.local
-    npm run admin:bootstrap -- --env-file .env.production.local
-    npm run db:verify -- --env-file .env.production.local
-    ```
-  - **Role runtime wajib dibuat dengan SQL, bukan lewat Neon Console/CLI/API.** Role yang dibuat lewat Console otomatis menjadi anggota `neon_superuser` (termasuk `pg_write_all_data` dan `BYPASSRLS`), sehingga bisa menulis ke semua tabel dan hak minimum dari `grants.ts` tidak berarti. `db:migrate` dan `db:verify` akan gagal bila role seperti itu dipakai. Jalankan di **Neon Console → SQL Editor** sebagai role pemilik database (mis. `neondb_owner`), dengan password acak panjang yang langsung disimpan di password manager:
-    ```sql
-    CREATE ROLE sumenep_app LOGIN PASSWORD '<password-acak-panjang>';
-    ALTER ROLE sumenep_app SET "TimeZone" TO 'UTC';
-    ```
-    Hak per tabel diberikan oleh `npm run db:migrate` (memanggil `grants.ts`). Bila `ALTER DATABASE … SET "TimeZone"` ditolak, jalankan juga `ALTER ROLE <role-pemilik> SET "TimeZone" TO 'UTC';`.
-  - **`npm run db:verify`** (read-only, satu transaksi `READ ONLY` yang selalu di-`ROLLBACK`): memeriksa migrasi, 17 tabel, 42 `CHECK`, 7 trigger aktif, trigger append-only Activity Log, constraint satu Admin dan jumlah Admin, atribut serta keanggotaan role runtime, 13 hak per tabel, sesi UTC, `sslmode=verify-full`, dan data awal. Aman dijalankan ke production kapan saja.
-
----
-
-## 6. Integrasi Cloudflare R2 (Implementasi Final)
-
-Implementasi berada di [`src/server/media/storage.ts`](../src/server/media/storage.ts), [`src/server/media/service.ts`](../src/server/media/service.ts), [`src/server/articles/queries.ts`](../src/server/articles/queries.ts), [`src/app/media/[...key]/route.ts`](../src/app/media/%5B...key%5D/route.ts), [`next.config.ts`](../next.config.ts), dan [`src/proxy.ts`](../src/proxy.ts):
-
-- **Antarmuka tetap:** `MediaStorage` (`put`, `get`, `remove`) tidak diubah sehingga pipeline Sharp (`15 MB` max, decode dari byte asli, auto-rotate EXIF, strip EXIF, resize `max 2400 px`, format WebP, deduplikasi SHA-256) dan `ArticleEditor` / `MediaPicker` tetap utuh.
-- **Adapter `S3Storage` (`@aws-sdk/client-s3@3.1175.0`):**
-  - Memakai `forcePathStyle: true`, `region: S3_REGION || "auto"`, serta `requestChecksumCalculation: "WHEN_REQUIRED"` dan `responseChecksumValidation: "WHEN_REQUIRED"` demi kompatibilitas penuh dengan endpoint Cloudflare R2 (`https://<account-id>.r2.cloudflarestorage.com`).
-  - Setiap `put()` menyertakan `ContentType` (`image/webp`) dan `CacheControl: "public, max-age=31536000, immutable"`.
-  - Validasi ketat `assertMediaKey` (`/^\d{4}\/\d{2}\/[0-9a-f]{16}\.webp$/`) sebelum panggilan S3; jika transaksi database gagal setelah upload baru, `service.ts` membersihkan objek R2 yang baru dibuat (kecuali jika `sha256` sudah terdaftar).
-- **Wajib R2 di Production:** dalam `NODE_ENV === "production"`, `resolveStorageSelection()` **menolak `LocalStorage`** (bahkan jika `MEDIA_DRIVER=local` dipasang) dan mewajibkan variabel R2 lengkap (`MEDIA_DRIVER=s3`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`). `LocalStorage` hanya dipakai di development/unit/db test atau flag khusus internal E2E lokal (`SUMENEP_LOCAL_MEDIA_FOR_E2E_ONLY=1`).
-- **Akses Gambar (`/media/[...key]` vs Custom Domain `R2_PUBLIC_URL`):**
-  - Default (bucket privat tanpa `R2_PUBLIC_URL`): `buildMediaUrl(key)` menghasilkan `/media/<key>`, disajikan lewat `/media/[...key]` dengan `Cache-Control: public, max-age=31536000, immutable` pada `200` dan `Cache-Control: no-store` pada `404`.
-  - Jika custom domain R2 diaktifkan melalui `R2_PUBLIC_URL` (mis. `https://media.sumenep.matamaduranews.com`): `buildMediaUrl(key)` langsung memancarkan URL custom domain tersebut, `next.config.ts` otomatis mendaftarkannya ke `images.remotePatterns`, dan `src/proxy.ts` otomatis mengizinkan origin-nya pada `img-src` CSP.
-
----
-
-## 7. Konfigurasi Environment Variables & Cache CDN (`hcdn`)
-
-Template lengkap tanpa secret ada di [`.env.example`](../.env.example).
-
-| Variabel | Scope Hostinger (Runtime / Build) | Scope Operator CLI |
-| --- | --- | --- |
-| `NEXT_PUBLIC_SITE_URL` | `https://sumenep.matamaduranews.com` (build-time) | — |
-| `NEXT_PUBLIC_SITE_ENV` | `staging` (`Disallow: /`) s.d. siap rilis | — |
-| `DATABASE_URL` | Neon `-pooler` + role minimum + `sslmode=verify-full` | Sama |
-| `DIRECT_URL`, `DB_APP_ROLE` | **Tidak dipasang di Hostinger** | Endpoint direct Neon untuk migrasi/CLI |
-| `MEDIA_DRIVER` | `s3` | `local` (dev/test) |
-| `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Kredensial bucket R2 khusus SUMENEP | Tidak wajib saat migrasi DB |
-| `R2_PUBLIC_URL` | Opsional custom domain publik R2 (kosong = `/media/<key>`) | — |
-| `CMS_PUBLIC_ARTICLES` | `"on"` bila `/artikel/[slug]` siap membaca DB CMS | — |
+| `NEXT_PUBLIC_SITE_URL` | `https://sumenep.matamaduranews.com` | — |
+| `NEXT_PUBLIC_SITE_ENV` | `staging` s.d. peluncuran | — |
+| `DATABASE_URL` | MariaDB SUMENEP (`mysql://user:password@localhost:3306/nama_db`); password apa adanya, tidak perlu URL-encode | Sama |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` (opsional `ADMIN_NAME`) | Akun Admin pertama, dibuat saat start bila belum ada; password min. 15 karakter; hapus `ADMIN_PASSWORD` setelah login pertama | — |
+| `DIRECT_URL`, `DB_APP_USER` | **Tidak dipasang** | Migrasi/CLI |
+| `MEDIA_DRIVER` | tidak perlu (bawaan `local`) | — |
+| `MEDIA_ROOT` | tidak perlu (bawaan `~/sumenep-data/media`) | Backup |
+| `CMS_PUBLIC_ARTICLES` | `on` | — |
 | `CMS_CACHE_SECONDS` | `60` | — |
-| `ADMIN_ALLOWED_HOSTS`, `TRUSTED_PROXY_COUNT`, `CLIENT_IP_HEADER` | Sesuaikan header proxy `hcdn` Hostinger | — |
-
-**Catatan CDN & Proxy:** `src/proxy.ts` melindungi `/admin/:path*`, `/api/admin/:path*`, dan `/pratinjau/:path*` dengan `Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow`, CSP nonce, serta validasi CSRF `Origin` + `Sec-Fetch-Site: same-origin`.
+| `TRUSTED_PROXY_COUNT`, `CLIENT_IP_HEADER`, `ADMIN_ALLOWED_HOSTS` | Sesuai proxy `hcdn` (dicek di Tahap E) | — |
+| `S3_*`, `R2_PUBLIC_URL` | **Tidak ada** | — |
 
 ---
 
-## 8. Prosedur Deployment, Smoke Test, Backup & Rollback
+## 8. Deployment
 
-### 8.1 Urutan Deployment ke Hostinger Singapore
+### 8.1 Jalur yang dipakai: setup otomatis saat start (tanpa SSH)
 
-1. Siapkan database **Neon Launch Singapore** + runtime role **via SQL** (§5) dan bucket **Cloudflare R2** + API token S3 scoped ke bucket tersebut.
-2. Dari komputer operator, siapkan `.env.production.local` sementara (git-ignored) lalu jalankan urutan di §5: `db:migrate` → `db:seed` → `db:verify` → `admin:bootstrap` (password Admin diketik sendiri oleh pemilik di terminal, tidak pernah lewat chat) → `db:verify` (harus `0 gagal` dan "tepat 1 Admin"). Hapus `.env.production.local` setelah selesai.
-3. Di **hPanel → Websites → Web Apps → `sumenep.matamaduranews.com`**, catat Commit SHA aktif, pastikan **Node.js `22.x`**, Install `npm ci`, Build `npm run build`, Start `npm start`, lalu isi seluruh Environment Variables produksi (`NEXT_PUBLIC_*`, `DATABASE_URL`, `MEDIA_DRIVER=s3`, `S3_*`, `CMS_PUBLIC_ARTICLES=on`, opsional `R2_PUBLIC_URL`). **Jangan** isi `DIRECT_URL` di Hostinger.
-4. Kode Fase 4 sudah ada di `main` (`e4e38bf`), jadi tidak perlu push baru: cukup **Redeploy/Rebuild** dari hPanel agar Environment Variables terbaca (`NEXT_PUBLIC_*` dibaca saat build).
-5. Jalankan `npm run prod:smoke`: semua baris harus `[OK]`, terutama **PostgreSQL** (`401` untuk sesi acak) dan **Media (R2)** (`404` untuk objek acak). Lalu lanjutkan uji manual §8.2.
+1. Pemilik mengisi `DATABASE_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` di hPanel → Environment variables Web App SUMENEP.
+2. Push ke `main` → Hostinger build dan start.
+3. Saat start, [`src/instrumentation.ts`](../src/instrumentation.ts) menjalankan [`src/server/deploy/auto-setup.ts`](../src/server/deploy/auto-setup.ts) di latar belakang, sekali per start:
+   - membaca `DATABASE_URL` secara toleran (password tanpa URL-encode, `localhost` diganti `127.0.0.1`);
+   - **menolak** database yang berisi tabel bukan milik SUMENEP (mis. WordPress), tanpa mengubah apa pun;
+   - menjalankan `prisma migrate deploy` (tidak pernah reset);
+   - membuat data awal satu kali, lalu Admin dari `ADMIN_EMAIL`/`ADMIN_PASSWORD` bila belum ada Admin;
+   - membuat dan menguji tulis folder media `~/sumenep-data/media`.
+4. Hasilnya terlihat tanpa login hPanel di **`/api/status`**: build yang aktif (commit + waktu build) dan status tiap langkah, tanpa nilai rahasia.
 
-### 8.2 Checklist Smoke Test Pasca-Deployment
+Gagal di satu langkah tidak menghentikan situs: halaman publik tetap berjalan, dan alasannya tampil di `/api/status`. Diuji lokal pada MariaDB 11.8.9 (database kosong, start ulang, database berisi tabel WordPress, password salah, password Admin terlalu pendek).
 
-`npm run prod:smoke` (read-only, tanpa login, tanpa menulis data) memeriksa otomatis beranda, `robots.txt`, header `/admin/login`, redirect `/admin`, `401` tanpa sesi, koneksi PostgreSQL, koneksi R2, `/artikel/<slug acak>`, penolakan `403` lintas-origin, dan website induk. Sisanya diuji manual oleh pemilik setelah login:
+### 8.2 Jalur lama lewat SSH (opsional)
 
-- [ ] `https://sumenep.matamaduranews.com/` tampil normal (`200 OK`), navigasi desktop/mobile bekerja, dan `https://matamaduranews.com/` (WordPress) tetap normal (`200 OK`).
-- [ ] `https://sumenep.matamaduranews.com/robots.txt` tetap `Disallow: /` selama `NEXT_PUBLIC_SITE_ENV=staging`.
-- [ ] `https://sumenep.matamaduranews.com/admin/login` tampil (`no-store`, `noindex`), ikon mata password berfungsi tanpa men-submit form, dan login Admin berhasil membuat session di Neon (`__Host-sumenep_admin`).
-- [ ] Dashboard `/admin`, `/admin/artikel`, pembuatan artikel + editor TipTap, autosave, dan `/pratinjau/[id]` (`noindex, no-store`) berfungsi.
-- [ ] Unggah gambar lewat CMS (`/api/admin/media` `201`), objek tersimpan di Cloudflare R2, dan gambar tampil melalui `/media/<key>` (`200 OK`, `immutable`) atau `R2_PUBLIC_URL`.
-- [ ] Publikasi artikel membuat `/artikel/<slug>` terbaca oleh publik (`CMS_PUBLIC_ARTICLES=on`), serta `/api/admin/me` mengembalikan `401` tanpa session dan `403` untuk request lintas origin (`matamaduranews.com`).
+Urutan dipilih agar situs publik tidak pernah mati: build gagal tidak mengganti build aktif, dan selama database/media belum siap halaman publik tetap berjalan seperti sekarang.
 
-### 8.3 Backup, Recovery & Rollback ke `f62ef97`
+| # | Langkah | Bila gagal |
+| --- | --- | --- |
+| 0 | Prasyarat §11 lengkap; catat commit aktif (`e4e38bf`); backup Hostinger (hPanel → Backups) dan folder `sumenep-data` | Berhenti; tidak ada yang berubah |
+| 1 | Migrasi di database SUMENEP yang **kosong**, lewat `scripts/ops/hostinger-tunnel.mjs`: `db:migrate` → `db:seed` → `db:verify` | Database baru belum dipakai situs; perbaiki lalu ulangi. Database kosong boleh dibuat ulang di hPanel |
+| 2 | `admin:bootstrap` (password diketik pemilik) → `db:verify` = 1 Admin | Sama seperti 1 |
+| 3 | Backup pertama (`npm run backup`) | Ulangi sebelum lanjut |
+| 4 | Commit + merge ke `main` + push (build otomatis) | Build gagal → situs tetap versi lama; perbaiki dan push lagi |
+| 5 | Isi Environment Variables (Import .env) → redeploy otomatis | Variabel salah → Admin/media error, publik tetap jalan; betulkan variabel |
+| 6 | `npm run prod:smoke` (9/9 + website induk), uji manual CMS, uji persistensi §10 | Rollback §9.3 bila kritis |
 
-- **Backup sebelum perubahan produksi:** manfaatkan **Neon Point-in-Time Restore (PITR)** (riwayat Launch hingga 7 hari) dan/atau snapshot logis `pg_dump` sebelum mengubah data.
-- **Rollback aplikasi ke `f62ef97`:**
-  1. Arahkan deploy Web App SUMENEP di hPanel kembali ke commit `f62ef97` (`origin/main` sebelum Fase 4) dan jalankan ulang build/restart Web App.
-  2. **Kompatibilitas database:** skema Fase 4 tidak menambah migrasi destruktif maupun menghapus tabel/kolom Fase 2–3 — `f62ef97` tetap dapat berjalan dengan tabel PostgreSQL yang ada. **Jangan pernah menjalankan `prisma migrate reset` atau `DROP TABLE`.**
-  3. Bila perlu memulihkan data Neon, lakukan PITR ke **branch Neon terpisah** terlebih dahulu untuk verifikasi sebelum mempromosikan/memulihkan data.
+Risiko utama: build Hostinger > 15 menit (lokal ±1–2 menit); `max_user_connections` kecil; header IP `hcdn` salah membuat batas login per IP berlaku untuk semua orang (dicek di langkah 6).
 
-### 8.4 Tindakan Manual yang Masih Memerlukan Akses Pemilik
+---
 
-1. Pembuatan/penyediaan project **Neon Launch Singapore**, role runtime `sumenep_app` lewat SQL (§5), connection string `DATABASE_URL` & `DIRECT_URL`, serta eksekusi interaktif `admin:bootstrap`.
-2. Pembuatan bucket **Cloudflare R2** + API token S3 (serta pengaturan DNS/custom domain R2 jika memilih opsi `R2_PUBLIC_URL`).
-3. Pengisian Environment Variables produksi dan eksekusi/pemicuan Git Deploy Web App `sumenep.matamaduranews.com` di **hPanel Hostinger**.
+## 9. Backup, Restore, dan Rollback
+
+### 9.1 Backup (sebelum setiap deploy/migrasi, dan berkala)
+- **Hostinger:** hPanel → Websites → Backups (backup otomatis paket + "generate" manual) — untuk seluruh akun.
+- **SUMENEP sendiri** (teruji lokal: `npm run test:backup`):
+  ```bash
+  # di server (SSH) atau dari komputer operator (database saja, lewat Remote MySQL)
+  node scripts/ops/backup.mjs --env-file <env-berisi-DIRECT_URL> --out /home/<user>/sumenep-data/backups --media-root /home/<user>/sumenep-data/media --label "sebelum-deploy"
+  ```
+  Menghasilkan `sumenep-<waktu>-db.sql.gz` (mariadb-dump `--single-transaction`, tanpa mengunci situs), `sumenep-<waktu>-media.tar.gz`, dan `sumenep-<waktu>-manifest.json` (SHA-256 setiap berkas, jumlah baris per tabel, daftar berkas media). Password tidak pernah masuk argumen proses, log, atau manifest. Backup lama tidak pernah dihapus otomatis.
+- **Tanpa Node/SSH:** phpMyAdmin → database SUMENEP → Export (SQL) dan File Manager → `sumenep-data/media` → Compress → Download.
+- Simpan salinan di luar server (unduh ke komputer redaksi).
+
+### 9.2 Restore (tidak pernah menimpa)
+```bash
+node scripts/ops/restore.mjs --manifest <…-manifest.json> --env-file <env-database-BARU-yang-kosong> --db
+node scripts/ops/restore.mjs --manifest <…-manifest.json> --media-target /home/<user>/sumenep-data/media-pulih-<tanggal>
+```
+Database berisi atau folder berisi → ditolak; berkas backup rusak (SHA-256 beda) → ditolak. Setelah pulih dan `db:verify` lulus, arahkan `DATABASE_URL`/`MEDIA_ROOT` ke salinan pulihan (Environment variables → redeploy). Data lama tetap ada sampai diputuskan.
+
+### 9.3 Rollback aplikasi
+1. Hentikan perubahan lebih lanjut; jangan menghapus database, media, atau backup.
+2. Kembalikan kode: `git revert` commit migrasi di `main` lalu push (Hostinger: tidak ada rollback per-commit; push = build otomatis; build aktif tetap jalan sampai build revert berhasil).
+3. Hasilnya kembali ke `e4e38bf`: halaman publik normal, Admin/media tidak aktif (sama dengan kondisi sebelum Tahap E). Environment variables MariaDB tidak dipakai versi itu dan boleh dibiarkan.
+4. Database MariaDB dan folder media tetap utuh untuk percobaan berikutnya; website induk tidak tersentuh oleh langkah mana pun.
+
+---
+
+## 10. Uji Persistensi Media di Hostinger
+
+1. Sekarang (Tahap D): `sh scripts/ops/hostinger-check.sh sumenep.matamaduranews.com` lewat SSH membuat `~/sumenep-data/media/.persistensi-penanda` (waktu + build aktif + nilai acak). Tanpa SSH: File Manager → buat folder `sumenep-data/media` di home dan berkas teks berisi tanggal.
+2. Setelah redeploy berikutnya (Tahap E, atau redeploy tanpa perubahan bila Anda setujui lebih awal): jalankan skrip yang sama. Penanda identik + build aktif berbeda = **terbukti bertahan**.
+3. Tahap E, uji end-to-end: unggah foto lewat CMS → redeploy → URL `/media/…` tetap 200 dengan isi sama.
+
+---
+
+## 11. Pemeriksaan Server Hostinger (Tahap D)
+
+### 11.1 Pemeriksaan otomatis (tanpa phpMyAdmin, tanpa salin-tempel SQL)
+
+```bash
+npm run hosting:check      # = node scripts/ops/hostinger-remote-check.mjs --env-file .env.hostinger-db.local --trigger-test --backup-test
+```
+
+- Jalur: SSH ke akun hosting yang sudah ada (`u123456789@srvNNN.hstgr.io:65002`) dengan **kunci khusus SUMENEP** `~/.ssh/sumenep_hostinger_ed25519` (bukan kunci umum laptop), tanpa `~/.ssh/config`, tanpa agent forwarding; host key dipatok di [`deploy/hostinger_known_hosts`](../deploy/hostinger_known_hosts) dan dicocokkan dengan kartu *SSH details* di hPanel (koneksi ditolak bila berubah). Lalu tunnel lokal `127.0.0.1` ke MariaDB di server. Tidak perlu membuka Remote MySQL; trigger yang dibuat lewat tunnel ber-definer `@localhost`.
+- Kredensial database hanya di `.env.hostinger-db.local` (git-ignored; template [`deploy/hostinger-db.env.template`](../deploy/hostinger-db.env.template)). Nama database dan nama user disalin persis dari hPanel (bisa berbeda). Password tidak pernah dicetak; hash password di `SHOW GRANTS` disamarkan otomatis.
+- Sebelum koneksi apa pun berkas akses diperiksa: user SSH dan nama database/user harus milik akun yang sama (awalan `u123456789_`), domain harus `sumenep.*`, `--no-ssh` hanya ke `127.0.0.1`. Kunci yang tidak ada menghentikan skrip tanpa percobaan login.
+- Menjalankan isi `prisma/sql/hostinger-probe-clean.sql`: bagian 1–4 hanya membaca; uji trigger (bagian 5–6) hanya bila database yang terhubung = `HOSTINGER_DB_NAME` dan **kosong**, dan tabel uji selalu dihapus lagi. Backup uji (salinan lokal sementara, langsung dihapus) hanya bila database tidak berisi tabel selain milik SUMENEP. Lalu `scripts/ops/hostinger-check.sh` lewat SSH: menulis hanya di `~/sumenep-data/{media,backups}` (uji tulis, penanda persistensi), membaca folder Web App SUMENEP, alat, dan `df`/`quota` (tidak menelusuri folder lain).
+- Tidak menjalankan migrasi atau deployment, tidak mengubah tabel aplikasi, WordPress, DNS, atau Environment variables.
+- Diuji lokal pada MariaDB **11.8.9** (versi Hostinger): database kosong, database berisi tabel WordPress (uji tulis dan backup dihentikan, tabel utuh), hanya tabel SUMENEP, dan sisa tabel uji; serta skrip server pada home tiruan (hanya `~/sumenep-data` yang berubah; domain induk dan symlink ditolak).
+
+**Batas akses SSH.** SSH masuk sebagai user akun hosting, pemilik semua file di paket itu, termasuk WordPress `matamaduranews.com` dan `wp-config.php`-nya. hPanel tidak menyediakan pembatasan SSH per folder. Pengamannya: hanya skrip di repo ini yang dijalankan, kunci khusus didaftarkan selama Tahap D–E saja, dan SSH dinonaktifkan lagi sesudahnya.
+
+### 11.2 Hasil per 24 November 2026
+
+| # | Pemeriksaan | Hasil | Bukti |
+| --- | --- | --- | --- |
+| 1 | Database SUMENEP | **ada**: `u123456789_sumenep` (dari pemilik) | Isi, charset, dan bukan-WordPress dicek `hosting:check` |
+| 2 | Versi MariaDB | **LULUS: 11.8.9-MariaDB-log** | Dibaca dari handshake server `srvNNN.hstgr.io:3306` tanpa login |
+| 3 | TLS ke 3306 | **didukung**; autentikasi bawaan `mysql_native_password` | Flag kapabilitas handshake |
+| 4 | Binary log, batas koneksi, hak user, charset, zona waktu | belum: butuh login | `hosting:check` |
+| 5 | `CREATE TRIGGER` | belum: butuh login | `hosting:check --trigger-test` |
+| 6 | User kedua / hak per tabel | belum dikonfirmasi; menurut dukungan Hostinger satu user per database | Tidak menghalangi rencana (mode satu user) |
+| 7 | SSH | **port 65002 terbuka (OpenSSH 9.9)**; kunci khusus `sumenep_hostinger_ed25519` **belum didaftarkan** (satu percobaan sebelumnya dengan kunci umum laptop: `Permission denied (publickey,password)`); sidik jari belum dicocokkan dengan hPanel | Host key RSA `SHA256:ikvmucfm…`, ECDSA `SHA256:Ja94GhDv…`, ED25519 `SHA256:BzVVkNV+…` |
+| 8 | Folder media/backup, hak tulis, disk, Node.js di SSH | belum: butuh SSH | `hosting:check` |
+| 9 | Persistensi media setelah redeploy | belum: butuh SSH + satu redeploy | §10 |
+
+### 11.3 Tindakan minimal pemilik
+1. hPanel → **Advanced → SSH Access**, kartu *SSH details*: cocokkan username (`u123456789`), port (`65002`), dan tiga sidik jari host key dengan yang tercatat di [`deploy/hostinger_known_hosts`](../deploy/hostinger_known_hosts). Bila ada yang berbeda, berhenti.
+2. Aktifkan SSH bila belum aktif (tanpa mengganti password), lalu **Add SSH key**: tempel kunci publik khusus `~/.ssh/sumenep_hostinger_ed25519.pub` (`ssh-ed25519 … sumenep-hostinger-u123456789`).
+3. hPanel → **Databases → Management**: salin persis nama database dan nama user SUMENEP ke `.env.hostinger-db.local` (`HOSTINGER_DB_NAME`, `HOSTINGER_DB_USER`), isi `HOSTINGER_DB_PASSWORD`, simpan. Jangan kirim isinya ke chat.
+
+Setelah itu seluruh pemeriksaan berjalan otomatis dengan `npm run hosting:check`. Sesudah Tahap E: hapus kunci itu di hPanel, nonaktifkan SSH bila sebelumnya nonaktif, dan kosongkan password di `.env.hostinger-db.local`.

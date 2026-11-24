@@ -1,56 +1,36 @@
-// Least-privilege grants for the runtime role (DB_APP_ROLE) and UTC sessions,
-// applied by the owner (DIRECT_URL) and then verified. Idempotent; run after
-// every migration (npm run db:migrate does it for you). Role names differ per
-// environment, which is why this is a script and not part of the migrations.
+// Least-privilege grants for a separate runtime user (DB_APP_USER), applied by
+// the owner (DIRECT_URL) and then verified from the runtime connection
+// (DATABASE_URL). Idempotent; run after every migration (npm run db:migrate
+// does it for you). User names differ per environment, which is why this is a
+// script and not part of the migrations.
 //
-// The runtime role gets SELECT/INSERT/UPDATE/DELETE on the CMS tables, except:
-//   activity_log        INSERT + SELECT only (append-only, also enforced by trigger)
+// The runtime user gets SELECT/INSERT/UPDATE/DELETE on each CMS table, except:
+//   activity_log        INSERT + SELECT only (append-only)
 //   admin_user          SELECT + UPDATE only (cannot create or delete the Admin)
 //   homepage_settings,
 //   site_settings       SELECT + UPDATE only (singletons cannot be added or removed)
 //   _prisma_migrations  nothing
-// It never owns a table, so it cannot ALTER tables or disable triggers.
+// and nothing else: no ALTER, DROP (so no TRUNCATE), CREATE, INDEX or TRIGGER.
+//
+// Single-user mode: Hostinger's hPanel gives one database user per database,
+// with all privileges on it. When DB_APP_USER is empty or the same user as
+// DIRECT_URL, nothing is granted; the app-level guards (src/server/db/guards.ts)
+// and, when the host allows them, the guard triggers enforce the rules.
+// `npm run db:verify` reports which mode is in use.
 //
 //   npm run db:grants [-- --env-file <path>] [-- --yes]
 import { parseArgs } from "node:util";
 
-import type { PrismaClient } from "@prisma/client";
-
-import { createPrismaClient, requireEnv, splitSchema } from "../../src/server/db/client";
+import { requireEnv } from "../../src/server/db/client";
 import { confirmTarget, loadEnv, Refusal, runCli } from "../lib/cli";
-
-const IDENT =/^[A-Za-z_][A-Za-z0-9_]{0,62}$/;
-const quote = (name: string) => {
-  if (!IDENT.test(name)) throw new Refusal(`Nama tidak valid: ${name}`);
-  return `"${name}"`;
-};
-
-export function grantStatements(appRole: string, schemaName: string): string[] {
-  const app = quote(appRole);
-  const schema = quote(schemaName);
-  return [
-    `REVOKE CREATE ON SCHEMA ${schema} FROM PUBLIC`,
-    `GRANT USAGE ON SCHEMA ${schema} TO ${app}`,
-    `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${app}`,
-    `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ${schema} TO ${app}`,
-    // Tables created later by the owner start with the same DML grants.
-    `ALTER DEFAULT PRIVILEGES IN SCHEMA ${schema} GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${app}`,
-    `ALTER DEFAULT PRIVILEGES IN SCHEMA ${schema} GRANT USAGE, SELECT ON SEQUENCES TO ${app}`,
-    // Exceptions.
-    `REVOKE ALL ON TABLE ${schema}."_prisma_migrations" FROM ${app}`,
-    `REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE ${schema}."activity_log" FROM ${app}`,
-    `REVOKE INSERT, DELETE, TRUNCATE ON TABLE ${schema}."admin_user" FROM ${app}`,
-    `REVOKE INSERT, DELETE, TRUNCATE ON TABLE ${schema}."homepage_settings", ${schema}."site_settings" FROM ${app}`,
-    `REVOKE TRUNCATE, REFERENCES, TRIGGER ON ALL TABLES IN SCHEMA ${schema} FROM ${app}`,
-  ];
-}
+import { account, ident, urlUser, withConnection, type Connection } from "../lib/mariadb";
 
 export const CHECKS: Array<[table: string, privilege: string, expected: boolean]> = [
   ["activity_log", "INSERT", true],
   ["activity_log", "SELECT", true],
   ["activity_log", "UPDATE", false],
   ["activity_log", "DELETE", false],
-  ["activity_log", "TRUNCATE", false],
+  ["activity_log", "DROP", false],
   ["admin_user", "SELECT", true],
   ["admin_user", "UPDATE", true],
   ["admin_user", "INSERT", false],
@@ -58,87 +38,151 @@ export const CHECKS: Array<[table: string, privilege: string, expected: boolean]
   ["homepage_settings", "INSERT", false],
   ["site_settings", "DELETE", false],
   ["article", "UPDATE", true],
+  ["article", "ALTER", false],
+  ["article", "TRIGGER", false],
   ["_prisma_migrations", "SELECT", false],
 ];
 
-export async function applyGrants(db: PrismaClient, appRole: string, schemaName: string): Promise<void> {
-  const [who] = await db.$queryRaw<Array<{ user: string }>>`SELECT current_user::text AS "user"`;
-  if (who.user === appRole) throw new Refusal("DB_APP_ROLE tidak boleh sama dengan role pemilik (DIRECT_URL).");
-  const [role] = await db.$queryRaw<Array<{ exists: boolean }>>`SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${appRole}) AS "exists"`;
-  if (!role.exists) throw new Refusal(`Role ${appRole} tidak ada di database ini.`);
+const EXCEPTIONS: Record<string, string> = {
+  activity_log: "SELECT, INSERT",
+  admin_user: "SELECT, UPDATE",
+  homepage_settings: "SELECT, UPDATE",
+  site_settings: "SELECT, UPDATE",
+};
 
-  await db.$transaction(async (tx) => {
-    for (const sql of grantStatements(appRole, schemaName)) await tx.$executeRawUnsafe(sql);
+/** GRANT statements for every CMS table of `database`. */
+export function grantStatements(appAccount: string, database: string, tables: string[]): string[] {
+  return tables
+    .filter((table) => table !== "_prisma_migrations")
+    .map((table) => `GRANT ${EXCEPTIONS[table] ?? "SELECT, INSERT, UPDATE, DELETE"} ON ${ident(database)}.${ident(table)} TO ${appAccount}`);
+}
+
+export function isSingleUser(directUrl: string, appUser: string | undefined): boolean {
+  return !appUser || account(appUser).user === urlUser(directUrl);
+}
+
+// ─── Effective privileges from SHOW GRANTS (of the current user) ─────────────
+
+const ALL = ["SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER", "INDEX", "TRIGGER", "REFERENCES", "CREATE VIEW", "SHOW VIEW"];
+
+interface Grant {
+  privileges: Set<string>;
+  database: string | null; // null = *.*
+  table: string | null; // null = db.*
+}
+
+function unquote(name: string): string {
+  return name.replace(/^`|`$/g, "").replace(/``/g, "`");
+}
+
+/** "GRANT SELECT, INSERT ON `db`.`t` TO …" → privileges and scope. */
+export function parseGrant(line: string): Grant | null {
+  const match = /^GRANT (.+?) ON (?:(?:TABLE|PROCEDURE|FUNCTION) )?(\*|`(?:[^`]|``)+`)\.(\*|`(?:[^`]|``)+`) TO /.exec(line);
+  if (!match) return null;
+  const raw = match[1].replace(/\([^)]*\)/g, ""); // column lists
+  const privileges = new Set(
+    raw
+      .split(",")
+      .map((p) => p.trim().toUpperCase())
+      .flatMap((p) => (p === "ALL PRIVILEGES" || p === "ALL" ? ALL : [p])),
+  );
+  return {
+    privileges,
+    database: match[2] === "*" ? null : unquote(match[2]),
+    table: match[3] === "*" ? null : unquote(match[3]),
+  };
+}
+
+/** MySQL database-name patterns in grants: % and _ are wildcards, \ escapes. */
+function databaseMatches(pattern: string, database: string): boolean {
+  let regex = "^";
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i];
+    if (ch === "\\" && i + 1 < pattern.length) regex += pattern[++i].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    else if (ch === "%") regex += ".*";
+    else if (ch === "_") regex += ".";
+    else regex += ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`${regex}$`, "i").test(database);
+}
+
+export async function currentGrants(conn: Connection): Promise<Grant[]> {
+  const rows = (await conn.query("SHOW GRANTS")) as Array<Record<string, string>>;
+  return rows.map((row) => parseGrant(Object.values(row)[0])).filter((g): g is Grant => g !== null);
+}
+
+export function hasPrivilege(grants: Grant[], database: string, table: string, privilege: string): boolean {
+  return grants.some(
+    (g) =>
+      g.privileges.has(privilege) &&
+      (g.database === null || (databaseMatches(g.database, database) && (g.table === null || g.table.toLowerCase() === table.toLowerCase()))),
+  );
+}
+
+// ─── Apply + verify ──────────────────────────────────────────────────────────
+
+async function tablesOf(conn: Connection): Promise<string[]> {
+  const rows = (await conn.query(
+    "SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' ORDER BY 1",
+  )) as Array<{ name: string }>;
+  return rows.map((r) => r.name);
+}
+
+export async function applyGrants(directUrl: string, appUser: string): Promise<void> {
+  const app = account(appUser);
+  await withConnection(directUrl, async (conn) => {
+    const [db] = (await conn.query("SELECT DATABASE() AS name")) as Array<{ name: string }>;
+    const tables = await tablesOf(conn);
+    // Start from nothing on this database: drop every earlier table/db-level grant.
+    const existing = (await conn.query(
+      "SELECT TABLE_NAME AS name FROM information_schema.TABLE_PRIVILEGES WHERE TABLE_SCHEMA = DATABASE() AND GRANTEE = ? GROUP BY TABLE_NAME",
+      [`'${app.user}'@'${app.host}'`],
+    )) as Array<{ name: string }>;
+    for (const { name } of existing) await conn.query(`REVOKE ALL PRIVILEGES ON ${ident(db.name)}.${ident(name)} FROM ${app.sql}`);
+    for (const sql of grantStatements(app.sql, db.name, tables)) await conn.query(sql);
   });
-
-  const failures: string[] = [];
-  for (const [table, privilege, expected] of CHECKS) {
-    const [row] = await db.$queryRawUnsafe<Array<{ ok: boolean }>>(
-      `SELECT has_table_privilege($1, $2, $3) AS ok`,
-      appRole,
-      `${quote(schemaName)}.${quote(table)}`,
-      privilege,
-    );
-    if (row.ok !== expected) failures.push(`${table}.${privilege} = ${row.ok}, seharusnya ${expected}`);
-  }
-  if (failures.length) throw new Error(`Hak akses tidak sesuai:\n  ${failures.join("\n  ")}`);
 }
 
-// Sessions must run in UTC. The pg driver adapter sends timestamps as UTC
-// without an offset and reads timestamptz as if the offset were +00:00, so a
-// session in e.g. Asia/Jakarta would shift every date by 7 hours — and SQL
-// such as `published_at <= now()` (scheduled articles) would be wrong.
-const UTC_NAMES = new Set(["UTC", "Etc/UTC", "UCT", "Etc/UCT", "GMT", "Etc/GMT", "Universal", "Etc/Universal", "Zulu"]);
-
-/** ALTER DATABASE … SET TimeZone = 'UTC' (needs ownership of the database). */
-async function setDatabaseTimeZone(db: PrismaClient): Promise<boolean> {
-  try {
-    await db.$executeRawUnsafe(
-      `DO $$ BEGIN EXECUTE format('ALTER DATABASE %I SET "TimeZone" TO %L', current_database(), 'UTC'); END $$`,
-    );
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** TimeZone of a brand-new session for this connection string. */
-async function sessionTimeZone(url: string): Promise<string> {
-  const client = createPrismaClient(url, { max: 1 });
-  try {
-    const [row] = await client.$queryRaw<Array<{ tz: string }>>`SELECT current_setting('TimeZone') AS tz`;
-    return row.tz;
-  } finally {
-    await client.$disconnect();
-  }
-}
-
-/** Grants + UTC sessions, verified. Run after every migration. */
-export async function finalizeDatabase(options: { directUrl: string; databaseUrl?: string; appRole: string }): Promise<string> {
-  const schemaName = splitSchema(options.directUrl).schema ?? "public";
-  const db = createPrismaClient(options.directUrl, { max: 1 });
-  let altered = false;
-  try {
-    await applyGrants(db, options.appRole, schemaName);
-    altered = await setDatabaseTimeZone(db);
-  } finally {
-    await db.$disconnect();
-  }
-  const sessions: Array<[string, string | undefined]> = [
-    ["pemilik (DIRECT_URL)", options.directUrl],
-    ["aplikasi (DATABASE_URL)", options.databaseUrl],
-  ];
-  for (const [label, url] of sessions) {
-    if (!url) continue;
-    const tz = await sessionTimeZone(url);
-    if (!UTC_NAMES.has(tz)) {
-      throw new Error(
-        `TimeZone sesi ${label} = ${tz}, seharusnya UTC${altered ? "" : " (ALTER DATABASE tidak diizinkan untuk role ini)"}. ` +
-          `Jalankan sebagai admin database: ALTER ROLE <role> SET "TimeZone" TO 'UTC';`,
-      );
+export async function verifyGrants(databaseUrl: string): Promise<string[]> {
+  return withConnection(databaseUrl, async (conn) => {
+    const [db] = (await conn.query("SELECT DATABASE() AS name")) as Array<{ name: string }>;
+    const grants = await currentGrants(conn);
+    const failures: string[] = [];
+    for (const [table, privilege, expected] of CHECKS) {
+      const actual = hasPrivilege(grants, db.name, table, privilege);
+      if (actual !== expected) failures.push(`${table}.${privilege} = ${actual}, seharusnya ${expected}`);
     }
+    return failures;
+  });
+}
+
+/** Session time zone of a new app connection (the client sets UTC per connection). */
+export async function sessionTimeZone(url: string): Promise<{ zone: string; offsetSeconds: number }> {
+  return withConnection(url, async (conn) => {
+    const [row] = (await conn.query("SELECT @@session.time_zone AS zone, TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW()) AS offset_s")) as Array<{ zone: string; offset_s: number }>;
+    return { zone: row.zone, offsetSeconds: Number(row.offset_s) };
+  });
+}
+
+/** Grants (when a separate runtime user exists) + UTC check. Run after every migration. */
+export async function finalizeDatabase(options: { directUrl: string; databaseUrl?: string; appUser?: string }): Promise<string> {
+  const messages: string[] = [];
+  if (isSingleUser(options.directUrl, options.appUser)) {
+    messages.push("Mode satu user database: hak akses tidak dipisah (guard aplikasi + trigger bila diizinkan host).");
+  } else {
+    if (!options.databaseUrl) throw new Refusal("DATABASE_URL diperlukan untuk memeriksa hak akses user runtime.");
+    if (urlUser(options.databaseUrl) !== account(options.appUser!).user) {
+      throw new Refusal("DATABASE_URL harus memakai DB_APP_USER (user runtime), bukan user lain.");
+    }
+    await applyGrants(options.directUrl, options.appUser!);
+    const failures = await verifyGrants(options.databaseUrl);
+    if (failures.length) throw new Error(`Hak akses tidak sesuai:\n  ${failures.join("\n  ")}`);
+    messages.push(`Hak akses ${account(options.appUser!).user} sesuai (${CHECKS.length} pemeriksaan).`);
   }
-  return `Hak akses ${options.appRole} pada skema ${schemaName} sesuai (${CHECKS.length} pemeriksaan); sesi database berjalan dalam UTC.`;
+  const tz = await sessionTimeZone(options.databaseUrl ?? options.directUrl);
+  if (tz.offsetSeconds !== 0) throw new Error(`Sesi database tidak UTC (time_zone ${tz.zone}).`);
+  messages.push("Sesi database berjalan dalam UTC.");
+  return messages.join(" ");
 }
 
 const isMain = process.argv[1] && /grants\.ts$/.test(process.argv[1]);
@@ -149,9 +193,7 @@ if (isMain) {
   void runCli(async () => {
     loadEnv(values["env-file"]);
     const directUrl = requireEnv("DIRECT_URL");
-    const appRole = process.env.DB_APP_ROLE;
-    if (!appRole) throw new Refusal("DB_APP_ROLE belum diisi (nama role runtime aplikasi).");
     await confirmTarget(directUrl, "mengatur hak akses", values.yes);
-    console.log(await finalizeDatabase({ directUrl, databaseUrl: process.env.DATABASE_URL, appRole }));
+    console.log(await finalizeDatabase({ directUrl, databaseUrl: process.env.DATABASE_URL, appUser: process.env.DB_APP_USER }));
   });
 }

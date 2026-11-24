@@ -1,5 +1,7 @@
 # Autentikasi dan keamanan Admin (Fase 3)
 
+> **Catatan 24 November 2026:** database CMS dipindahkan dari PostgreSQL ke **MariaDB Hostinger** dan media dari Cloudflare R2 ke **disk Hostinger**. Bagian dokumen ini yang menyebut PostgreSQL, Neon, role/`pg_*`, atau R2 berlaku untuk versi Fase 2–4 (`prisma/postgresql/`). Padanan MariaDB dan alasannya: [10-migrasi-mariadb.md](10-migrasi-mariadb.md).
+
 Status per 21 November 2026: selesai dan teruji di lingkungan lokal yang terisolasi. Branch `backend/fase-3-auth` (dari `c08d8f8`), belum di-push dan belum di-deploy. Situs publik tidak berubah.
 
 CMS hanya punya satu akun, Admin. Tidak ada peran lain, tidak ada pendaftaran, dan tidak ada halaman atau API untuk membuat akun. Akun dibuat dan dipulihkan lewat CLI (lihat [05-backend-fondasi.md](05-backend-fondasi.md), bagian 8).

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 
-import { connect, rejects, resetData } from "../helpers/db";
+import { connect, DBERR, rejects, resetData } from "../helpers/db";
 import { insertAdmin, insertSession, sha256 } from "../helpers/fixtures";
 
 const { owner, app, close } = connect();
@@ -23,7 +23,7 @@ describe("sessions (rules for the Fase 3 login)", () => {
 
   test("at most 8 hours after the last activity", async () => {
     await insertSession(app, { token: "tepat-8-jam", hours: 8 });
-    await rejects(insertSession(app, { token: "sembilan-jam", hours: 9 }), /23514/, /admin_session_max_8_hours/);
+    await rejects(insertSession(app, { token: "sembilan-jam", hours: 9 }), DBERR.check, /admin_session_max_8_hours/);
     await rejects(insertSession(app, { token: "lewat-sedetik", hours: 8 + 1 / 3600 }), /admin_session_max_8_hours/);
   });
 

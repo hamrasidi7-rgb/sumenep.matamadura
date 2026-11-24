@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { Media, Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type Media, type PrismaClient } from "@prisma/client";
 import sharp from "sharp";
 import { z } from "zod";
 
@@ -9,8 +9,9 @@ import { logActivity } from "@/server/activity-log";
 
 import { buildMediaUrl, getMediaStorage } from "./storage";
 
-// Image upload for the CMS (Fase 4 minimum: upload + recent list; the full
-// Media Library — folders, search, delete — is Fase 6).
+// Image upload for the CMS (Fase 4 minimum: upload + recent list; delete was
+// added with the move to disk storage — API only, the Media Library UI with
+// folders, search and delete buttons is Fase 6).
 //
 // Adapted from Busacare's upload route + sharp pipeline: decode with sharp
 // (the bytes, not the file name or the browser's MIME type, decide what the
@@ -118,7 +119,7 @@ export async function uploadImage(
       const created = await tx.media.create({
         data: {
           storageKey: key,
-          originalName: file.name.slice(0, 200) || "gambar",
+          originalName: safeOriginalName(file.name),
           mimeType: "image/webp",
           sizeBytes: processed.data.length,
           width: processed.width,
@@ -177,10 +178,65 @@ export async function updateMediaMeta(
   });
 }
 
+export type DeleteMediaResult = { ok: true; storageKey: string } | { ok: false; status: 404 | 409; error: string };
+
+/**
+ * Deletes an image: the database row first (foreign keys refuse an image that
+ * is still used as a featured/OG image, in an article body or gallery, as an
+ * author photo or the site's default share image), then the file. A file that
+ * cannot be removed is only logged: an orphan file is harmless, a row without
+ * its file is not.
+ */
+export async function deleteMedia(
+  db: PrismaClient,
+  id: string,
+  actor: { adminId: number; ip?: string | null; userAgent?: string | null },
+): Promise<DeleteMediaResult> {
+  let media: Media | null;
+  try {
+    media = await db.$transaction(async (tx) => {
+      const row = await tx.media.findUnique({ where: { id } });
+      if (!row) return null;
+      await tx.media.delete({ where: { id } });
+      await logActivity(tx, {
+        actor: "ADMIN",
+        adminId: actor.adminId,
+        action: "media.delete",
+        entityType: "media",
+        entityId: id,
+        summary: `Gambar dihapus: ${row.originalName}`,
+        meta: { storageKey: row.storageKey, sha256: row.sha256 },
+        ip: actor.ip,
+        userAgent: actor.userAgent,
+      });
+      return row;
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return { ok: false, status: 409, error: "Gambar masih dipakai (artikel, penulis, atau pengaturan situs). Lepaskan dulu sebelum menghapus." };
+    }
+    throw error;
+  }
+  if (!media) return { ok: false, status: 404, error: "Gambar tidak ditemukan." };
+  const key = media.storageKey;
+  await getMediaStorage()
+    .remove(key)
+    .catch((error: unknown) => console.warn(`[media] berkas ${key} tidak terhapus: ${error instanceof Error ? error.message : String(error)}`));
+  return { ok: true, storageKey: key };
+}
+
+/** Original file name, for display only: no folders, no control characters. */
+export function safeOriginalName(name: string): string {
+  const base = name.split(/[\\/]/).pop() ?? "";
+  // eslint-disable-next-line no-control-regex
+  return base.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 200) || "gambar";
+}
+
 export async function recentMedia(db: PrismaClient, query = "", limit = 30): Promise<MediaDto[]> {
   const q = query.trim().slice(0, 100);
   const where: Prisma.MediaWhereInput = q
-    ? { OR: [{ alt: { contains: q, mode: "insensitive" } }, { caption: { contains: q, mode: "insensitive" } }, { originalName: { contains: q, mode: "insensitive" } }] }
+    ? // Case-insensitive: the columns use the utf8mb4_unicode_ci collation.
+      { OR: [{ alt: { contains: q } }, { caption: { contains: q } }, { originalName: { contains: q } }] }
     : {};
   const rows = await db.media.findMany({ where, orderBy: { createdAt: "desc" }, take: Math.min(Math.max(limit, 1), 60) });
   return rows.map(toMediaDto);

@@ -1,5 +1,7 @@
 # 09 · CMS Artikel (Fase 4)
 
+> **Catatan 24 November 2026:** database CMS dipindahkan dari PostgreSQL ke **MariaDB Hostinger** dan media dari Cloudflare R2 ke **disk Hostinger**. Bagian dokumen ini yang menyebut PostgreSQL, Neon, role/`pg_*`, atau R2 berlaku untuk versi Fase 2–4 (`prisma/postgresql/`). Padanan MariaDB dan alasannya: [10-migrasi-mariadb.md](10-migrasi-mariadb.md).
+
 Branch `backend/fase-4-cms-artikel`, dibangun di atas Fase 3 (`80d5614`). Dokumen ini berisi panduan memakai CMS, aturan publikasi, rincian teknis, dan daftar modul Busacare yang dipakai ulang.
 
 Ringkasnya, Admin bisa menulis, menyimpan otomatis, mempratinjau, menerbitkan, menjadwalkan, mengarsipkan, membuang ke tempat sampah, memulihkan, dan menghapus artikel. Isi ditulis dengan editor TipTap, lalu disimpan sebagai JSON yang sudah disaring di server. Saat ditampilkan, JSON itu diubah ke model blok frontend SUMENEP (`ArticleBlock[]`), sehingga komponen artikel publik tidak berubah.

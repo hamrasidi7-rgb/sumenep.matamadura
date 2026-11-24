@@ -79,4 +79,41 @@ describe("image upload", () => {
       assert.throws(() => storage.assertMediaKey(bad), bad);
     }
   });
+
+  test("original file names are kept for display only, without folders or control characters", async () => {
+    const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: "#123456" } }).png().toBuffer();
+    const { media } = await service.uploadImage(app, { name: "..\..\C:\rahasia/../foto\u0007 pantai.png", bytes: png }, { alt: "x" }, actor);
+    const row = await owner.media.findUniqueOrThrow({ where: { id: media.id } });
+    assert.equal(row.originalName, "foto pantai.png");
+    assert.match(row.storageKey, /^\d{4}\/\d{2}\/[0-9a-f]{16}\.webp$/, "the stored path never comes from the name");
+  });
+});
+
+describe("deleting media", () => {
+  test("an unused image: row and file are removed, the deletion is logged", async () => {
+    const png = await sharp({ create: { width: 120, height: 80, channels: 3, background: "#00ff00" } }).png().toBuffer();
+    const { media } = await service.uploadImage(app, { name: "hapus.png", bytes: png }, { alt: "x" }, actor);
+    const key = media.src.replace(/^\/media\//, "");
+    assert.ok(fs.existsSync(path.join(root, ...key.split("/"))), "file on disk");
+    const result = await service.deleteMedia(app, media.id, actor);
+    assert.deepEqual(result, { ok: true, storageKey: key });
+    assert.equal(await owner.media.count({ where: { id: media.id } }), 0);
+    assert.equal(fs.existsSync(path.join(root, ...key.split("/"))), false, "file removed from disk");
+    assert.equal(await storage.getMediaStorage().get(key), null);
+    assert.equal(await owner.activityLog.count({ where: { action: "media.delete", entityId: media.id } }), 1);
+    assert.deepEqual(await service.deleteMedia(app, media.id, actor), { ok: false, status: 404, error: "Gambar tidak ditemukan." });
+  });
+
+  test("an image in use is refused and its file stays", async () => {
+    const png = await sharp({ create: { width: 120, height: 80, channels: 3, background: "#0000ff" } }).png().toBuffer();
+    const { media } = await service.uploadImage(app, { name: "dipakai.png", bytes: png }, { alt: "x" }, actor);
+    const author = await app.author.create({ data: { slug: "penulis-foto", name: "Penulis", avatarId: media.id } });
+    const result = await service.deleteMedia(app, media.id, actor);
+    assert.equal(result.ok, false);
+    assert.equal(!result.ok && result.status, 409);
+    const key = media.src.replace(/^\/media\//, "");
+    assert.ok(await storage.getMediaStorage().get(key), "file kept");
+    assert.equal(await owner.media.count({ where: { id: media.id } }), 1);
+    await app.author.delete({ where: { id: author.id } });
+  });
 });

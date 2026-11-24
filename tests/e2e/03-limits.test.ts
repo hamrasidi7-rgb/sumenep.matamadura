@@ -51,10 +51,10 @@ after(async () => {
 
 /** Moves the clock back for this run's sessions (and the last password change, which must not be newer). */
 async function ageSessions(createdHoursAgo: number, expiresInHours: number) {
-  await owner.$executeRaw`UPDATE admin_user SET password_changed_at = now() - interval '12 hours' WHERE id = 1`;
+  await owner.$executeRaw`UPDATE admin_user SET password_changed_at = NOW(3) - INTERVAL 12 HOUR WHERE id = 1`;
   await owner.$executeRawUnsafe(
-    `UPDATE admin_session SET created_at = now() - interval '${createdHoursAgo} hours', last_seen_at = now() - interval '${createdHoursAgo} hours',
-       expires_at = now() + interval '${expiresInHours} hours' WHERE revoked_at IS NULL`,
+    `UPDATE admin_session SET created_at = NOW(3) - INTERVAL ${Number(createdHoursAgo)} HOUR, last_seen_at = NOW(3) - INTERVAL ${Number(createdHoursAgo)} HOUR,
+       expires_at = NOW(3) + INTERVAL ${Number(expiresInHours)} HOUR WHERE revoked_at IS NULL`,
   );
 }
 

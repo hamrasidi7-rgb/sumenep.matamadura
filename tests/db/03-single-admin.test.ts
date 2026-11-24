@@ -4,7 +4,7 @@ import { after, beforeEach, describe, test } from "node:test";
 import { AdminExistsError, bootstrapAdmin } from "@/server/admin/bootstrap";
 import { verifyPassword } from "@/server/auth/password";
 
-import { connect, rejects, resetData, runScript } from "../helpers/db";
+import { connect, DBERR, LAYERS, rawSql, rejects, resetData, runScript } from "../helpers/db";
 import { escapeRegExp, TEST_PASSWORD, TEST_PASSWORD_2 } from "../helpers/fixtures";
 
 const { owner, app, close } = connect();
@@ -58,40 +58,40 @@ describe("a second Admin is impossible", () => {
   test("database rejects id ≠ 1 (CHECK) and a second id = 1 (PRIMARY KEY) — even for the owner", async () => {
     await bootstrapAdmin(owner, INPUT);
     await rejects(
-      owner.$executeRawUnsafe(
-        `INSERT INTO "admin_user" ("id", "email", "name", "password_hash", "updated_at") VALUES (2, 'dua@sumenep.test', 'Dua', 'scrypt$x', now())`,
-      ),
-      /23514/,
+      rawSql("owner", "INSERT INTO admin_user (id, email, name, password_hash, updated_at) VALUES (2, 'dua@sumenep.test', 'Dua', 'scrypt$x', NOW())"),
+      DBERR.check,
       /admin_user_single_admin/,
     );
     await rejects(
       owner.adminUser.create({ data: { id: 2, email: "dua@sumenep.test", name: "Dua", passwordHash: "scrypt$x" } }),
-      /23514/,
+      DBERR.check,
       /admin_user_single_admin/,
     );
-    await rejects(
-      owner.adminUser.create({ data: { email: "dua@sumenep.test", name: "Dua", passwordHash: "scrypt$x" } }),
-      /23505/,
-      /admin_user_pkey/,
-    );
-    await rejects(owner.$executeRawUnsafe(`UPDATE "admin_user" SET "id" = 2`), /23514|23503/);
+    await rejects(owner.adminUser.create({ data: { email: "dua@sumenep.test", name: "Dua", passwordHash: "scrypt$x" } }), DBERR.unique);
+    await rejects(rawSql("owner", "UPDATE admin_user SET id = 2"), /4025|1451/);
     assert.equal(await owner.adminUser.count(), 1);
   });
 
-  test("the runtime role can neither create nor delete the Admin", async () => {
-    await rejects(app.adminUser.create({ data: { email: "app@sumenep.test", name: "App", passwordHash: "scrypt$x" } }), /42501/);
+  test("the Admin cannot be deleted, and the runtime user cannot create one", async () => {
+    if (LAYERS.separateUser) {
+      await rejects(app.adminUser.create({ data: { email: "app@sumenep.test", name: "App", passwordHash: "scrypt$x" } }), DBERR.privilege);
+    }
     await bootstrapAdmin(owner, INPUT);
-    await rejects(app.adminUser.delete({ where: { id: 1 } }), /42501/);
-    await rejects(app.$executeRawUnsafe(`DELETE FROM "admin_user"`), /42501/);
-    // once the bootstrap is logged, even the owner cannot delete the Admin
-    await rejects(owner.adminUser.delete({ where: { id: 1 } }), /23503/, /activity_log_admin_id_fkey/);
+    // App-level guard (always, for every Prisma client — owner included).
+    await rejects(app.adminUser.delete({ where: { id: 1 } }), DBERR.guard, /cannot be deleted/);
+    await rejects(owner.adminUser.deleteMany({}), DBERR.guard, /cannot be deleted/);
+    // Raw SQL bypasses the guard: then the privilege, the trigger or the foreign key stops it.
+    if (LAYERS.separateUser) await rejects(rawSql("app", "DELETE FROM admin_user"), DBERR.privilege);
+    await rejects(rawSql("owner", "DELETE FROM admin_user"), LAYERS.triggers ? DBERR.signal : DBERR.foreignKey);
     assert.equal(await owner.adminUser.count(), 1);
   });
 
-  test("email and hash format are enforced by the database", async () => {
+  test("email and hash format are enforced by the database (case-sensitive despite the _ci collation)", async () => {
     await bootstrapAdmin(owner, INPUT);
-    await rejects(owner.$executeRawUnsafe(`UPDATE "admin_user" SET "email" = 'Besar@Sumenep.test'`), /admin_user_email_format/);
-    await rejects(owner.$executeRawUnsafe(`UPDATE "admin_user" SET "password_hash" = 'plaintext'`), /admin_user_password_hash_scrypt/);
+    await rejects(rawSql("owner", "UPDATE admin_user SET email = 'Besar@Sumenep.test'"), DBERR.check, /admin_user_email_format/);
+    await rejects(rawSql("owner", "UPDATE admin_user SET email = 'tanpa-at'"), /admin_user_email_format/);
+    await rejects(rawSql("owner", "UPDATE admin_user SET password_hash = 'plaintext'"), /admin_user_password_hash_scrypt/);
+    await rejects(rawSql("owner", "UPDATE admin_user SET password_hash = 'SCRYPT$x'"), /admin_user_password_hash_scrypt/);
   });
 });
 

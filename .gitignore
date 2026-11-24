@@ -24,3 +24,6 @@ qa/lighthouse/*.html
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Host key server SSH Hostinger yang dipatok: dibuat lokal, tidak dipublikasikan (repo publik)
+deploy/hostinger_known_hosts

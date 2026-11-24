@@ -4,6 +4,7 @@ import { docMediaIds, type DocNode } from "@/lib/article-doc";
 import { mediaByIds, mediaUrl, type MediaDto } from "@/server/media/service";
 
 import { articleState, stateWhere, type ArticleState, type StateFilter } from "./status";
+import { toTags } from "./tags";
 
 // Read side of the CMS: the article list (search + filters + paging), the
 // editor's data, and the small lookups the editor needs.
@@ -34,11 +35,12 @@ export function listWhere(filters: ListFilters, now = new Date()): Prisma.Articl
   if (q) {
     and.push({
       OR: [
-        { title: { contains: q, mode: "insensitive" } },
-        { standfirst: { contains: q, mode: "insensitive" } },
+        // Case-insensitive: the columns use the utf8mb4_unicode_ci collation.
+        { title: { contains: q } },
+        { standfirst: { contains: q } },
         { slug: { contains: q.toLowerCase() } },
-        { bodyText: { contains: q, mode: "insensitive" } },
-        { tags: { has: q } },
+        { bodyText: { contains: q } },
+        { tags: { array_contains: [q] } },
       ],
     });
   }
@@ -174,7 +176,7 @@ export async function articleForEditor(db: PrismaClient, id: string, now = new D
       kanalId: a.kanalId,
       rubrikId: a.rubrikId,
       heroMediaId: a.heroMediaId,
-      tags: a.tags,
+      tags: toTags(a.tags),
       seoTitle: a.seoTitle ?? "",
       seoDescription: a.seoDescription ?? "",
       canonicalUrl: a.canonicalUrl ?? "",
@@ -193,7 +195,7 @@ export async function searchPublishedForLink(db: PrismaClient, q: string, now = 
   const term = q.trim().slice(0, 100);
   if (term.length < 2) return [];
   const rows = await db.article.findMany({
-    where: { AND: [stateWhere("terbit", now), { title: { contains: term, mode: "insensitive" } }] },
+    where: { AND: [stateWhere("terbit", now), { title: { contains: term } }] },
     orderBy: { publishedAt: "desc" },
     take: 8,
     select: { slug: true, title: true },

@@ -8,7 +8,7 @@ import { changeArticleState, createArticle, deleteArticlePermanently, publishArt
 import { publicArticleView, publicRedirectTarget } from "@/server/articles/view";
 import { seedInitialData } from "@/server/seed";
 
-import { connect, rejects, resetData } from "../helpers/db";
+import { connect, DBERR, rejects, resetData } from "../helpers/db";
 import { findSection, insertAdmin, makeMedia } from "../helpers/fixtures";
 
 // Article CMS rules, run with the RUNTIME role (what the CMS uses).
@@ -128,7 +128,7 @@ describe("create and save", () => {
     });
     const usage = await owner.articleMedia.findMany({ where: { articleId: a.id }, orderBy: { usage: "asc" } });
     assert.deepEqual(usage.map((u) => [u.usage, u.mediaId]), [["BODY", heroId], ["GALLERY", gallery.id]]);
-    await rejects(app.media.delete({ where: { id: gallery.id } }), /23503/);
+    await rejects(app.media.delete({ where: { id: gallery.id } }), DBERR.foreignKey);
   });
 
   test("SEO fields are validated and stored", async () => {

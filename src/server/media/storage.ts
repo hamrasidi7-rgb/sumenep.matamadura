@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -12,8 +13,15 @@ import {
 } from "@aws-sdk/client-s3";
 
 // Penyimpanan berkas media CMS:
-//   - Development / pengujian: LocalStorage pada MEDIA_ROOT (default "media")
-//   - Production: wajib S3Storage (Cloudflare R2 S3-compatible API)
+//   - Default (development, pengujian, dan production di Hostinger): LocalStorage,
+//     berkas di disk pada MEDIA_ROOT.
+//   - Opsional: S3Storage (API S3-compatible, mis. Cloudflare R2), hanya bila
+//     MEDIA_DRIVER=s3 dipasang secara eksplisit. Bukan ketergantungan production.
+//
+// Production + LocalStorage: MEDIA_ROOT harus path absolut DI LUAR direktori
+// aplikasi (process.cwd()) dan di luar .next, karena deployment Hostinger
+// mengganti direktori aplikasi pada setiap build; folder di luarnya tetap ada.
+// Bila tidak diisi: ~/sumenep-data/media.
 //
 // Antarmuka MediaStorage tetap seragam agar pemanggil tidak bergantung pada
 // implementasi penyimpanan. Key berbentuk "YYYY/MM/<16-hex>.webp" (diturunkan
@@ -74,15 +82,6 @@ export function buildMediaUrl(key: string, env: Record<string, string | undefine
   return publicBase ? `${publicBase}/${cleanKey}` : `/media/${cleanKey}`;
 }
 
-function hasAnyS3Env(env: Record<string, string | undefined>): boolean {
-  return Boolean(
-    env.S3_ENDPOINT?.trim() ||
-      env.S3_BUCKET?.trim() ||
-      env.S3_ACCESS_KEY_ID?.trim() ||
-      env.S3_SECRET_ACCESS_KEY?.trim(),
-  );
-}
-
 export function parseS3Config(env: Record<string, string | undefined> = process.env): S3StorageConfig {
   const endpointRaw = env.S3_ENDPOINT?.trim() ?? "";
   const bucket = env.S3_BUCKET?.trim() ?? "";
@@ -118,40 +117,65 @@ export function parseS3Config(env: Record<string, string | undefined> = process.
   };
 }
 
-export function resolveStorageSelection(env: Record<string, string | undefined> = process.env): StorageSelection {
+export function resolveStorageSelection(env: Record<string, string | undefined> = process.env, cwd = process.cwd()): StorageSelection {
   const explicit = env.MEDIA_DRIVER?.trim().toLowerCase();
   if (explicit && explicit !== "s3" && explicit !== "local") {
     throw new Error(`MEDIA_DRIVER tidak dikenali: "${env.MEDIA_DRIVER}". Gunakan "s3" atau "local".`);
   }
 
-  const isProd = env.NODE_ENV === "production";
-  const allowLocalForE2e = env.SUMENEP_LOCAL_MEDIA_FOR_E2E_ONLY === "1";
+  // S3 only when asked for explicitly: stray S3_* variables never switch production away from disk.
+  if (explicit === "s3") return { driver: "s3", s3: parseS3Config(env) };
 
-  if (explicit === "s3" || (!explicit && hasAnyS3Env(env))) {
-    return { driver: "s3", s3: parseS3Config(env) };
+  if (env.NODE_ENV === "production") return { driver: "local", root: productionMediaRoot(env.MEDIA_ROOT, cwd) };
+  return { driver: "local", root: path.resolve(cwd, env.MEDIA_ROOT || "media") };
+}
+
+/** Is `child` the same folder as, or inside, `parent`? (case-insensitive on Windows) */
+function isInside(parent: string, child: string): boolean {
+  const norm = (p: string) => (process.platform === "win32" ? path.resolve(p).toLowerCase() : path.resolve(p));
+  const relative = path.relative(norm(parent), norm(child));
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+/** Production default: ~/sumenep-data/media (on Hostinger /home/<user>/sumenep-data/media, outside every deploy folder). */
+export const defaultProductionMediaRoot = (home = os.homedir()) => path.join(home, "sumenep-data", "media");
+
+/**
+ * MEDIA_ROOT for production: absolute and outside the application directory
+ * (which a redeploy replaces) — so outside .next as well. Not set: the default
+ * folder in the account's home directory.
+ */
+export function productionMediaRoot(raw: string | undefined, cwd = process.cwd()): string {
+  const value = raw?.trim() || defaultProductionMediaRoot();
+  if (!path.isAbsolute(value)) {
+    throw new Error("MEDIA_ROOT harus path absolut (mis. /home/<user>/domains/<domain>/sumenep-media).");
   }
-
-  if (isProd && !allowLocalForE2e) {
-    throw new Error(
-      "Penyimpanan media produksi wajib menggunakan Cloudflare R2 (MEDIA_DRIVER=s3 beserta S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY). LocalStorage dilarang di production.",
-    );
+  const root = path.resolve(value);
+  if (isInside(cwd, root)) {
+    throw new Error("MEDIA_ROOT tidak boleh berada di dalam direktori aplikasi (terhapus saat redeploy). Pilih folder di luarnya.");
   }
-
-  return { driver: "local", root: path.resolve(env.MEDIA_ROOT || "media") };
+  if (root.split(path.sep).includes(".next")) {
+    throw new Error("MEDIA_ROOT tidak boleh berada di dalam .next.");
+  }
+  return root;
 }
 
 export class LocalStorage implements MediaStorage {
   constructor(private readonly root: string) {}
 
+  /** Path of a key. The key pattern already excludes "..", and the result is checked to stay inside the root. */
   private file(key: string): string {
-    return path.join(this.root, ...assertMediaKey(key).split("/"));
+    const target = path.resolve(this.root, ...assertMediaKey(key).split("/"));
+    if (!isInside(this.root, target) || target === path.resolve(this.root)) throw new Error(`Kunci media di luar MEDIA_ROOT: ${key}`);
+    return target;
   }
 
   async put(key: string, data: Buffer): Promise<void> {
     const target = this.file(key);
-    await fs.mkdir(path.dirname(target), { recursive: true });
+    // Owner read/write only: the files are served by the app (/media/…), never directly.
+    await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o750 });
     const temp = `${target}.${process.pid}.${Date.now()}.tmp`;
-    await fs.writeFile(temp, data);
+    await fs.writeFile(temp, data, { mode: 0o640 });
     await fs.rename(temp, target); // never a half-written file under the real name
   }
 

@@ -7,10 +7,10 @@
 //
 // Selain halaman publik dan pengamanan admin, skrip ini menjawab dua pertanyaan
 // tanpa kredensial apa pun:
-//   - PostgreSQL terhubung?  /api/admin/me dengan token sesi acak (format valid):
+//   - Database terhubung?    /api/admin/me dengan token sesi acak (format valid):
 //                            401 = database terbaca, 500 = DATABASE_URL belum/tidak bisa dipakai.
-//   - Media (R2) siap?       /media/<key acak yang valid>:
-//                            404 = penyimpanan terbaca, 500 = variabel R2 belum lengkap/kredensial salah.
+//   - Media siap?            /media/<key acak yang valid>:
+//                            404 = penyimpanan terbaca, 500 = MEDIA_ROOT belum diisi/tidak valid (atau driver S3 salah).
 // Exit 0 = semua lolos, 1 = ada yang gagal.
 import { randomBytes } from "node:crypto";
 import { parseArgs } from "node:util";
@@ -73,23 +73,23 @@ await check("API tanpa sesi", async () => {
   add(r.status === 401, "API tanpa sesi", `${r.status} (seharusnya 401)`);
 });
 
-await check("PostgreSQL", async () => {
+await check("Database", async () => {
   // Format valid, tidak pernah ada di database. Dua nama cookie: next start / next dev.
   const token = randomBytes(32).toString("base64url");
   const r = await hit("/api/admin/me", { headers: { cookie: `__Host-sumenep_admin=${token}; sumenep_admin_dev=${token}` } });
   const detail = r.status === 401 ? "terhubung (sesi acak dicari di database → 401)"
-    : r.status === 500 ? "BELUM terhubung (500): DATABASE_URL belum diisi, salah, atau database tidak terjangkau"
+    : r.status === 500 ? "BELUM terhubung (500): DATABASE_URL belum diisi, salah, atau MariaDB tidak terjangkau"
     : `status tak terduga ${r.status}`;
-  add(r.status === 401, "PostgreSQL", detail);
+  add(r.status === 401, "Database", detail);
 });
 
-await check("Media (R2)", async () => {
+await check("Media", async () => {
   const key = `2000/01/${randomBytes(8).toString("hex")}.webp`; // format valid, tidak pernah ada
   const r = await hit(`/media/${key}`);
   const detail = r.status === 404 ? "penyimpanan terbaca (objek acak → 404)"
-    : r.status === 500 ? "BELUM siap (500): MEDIA_DRIVER=s3 dan S3_* belum lengkap, atau kredensial/bucket salah"
+    : r.status === 500 ? "BELUM siap (500): MEDIA_ROOT belum diisi, relatif, di dalam folder aplikasi, atau tidak bisa dibaca"
     : `status tak terduga ${r.status}`;
-  add(r.status === 404, "Media (R2)", detail);
+  add(r.status === 404, "Media", detail);
 });
 
 await check("Artikel publik", async () => {

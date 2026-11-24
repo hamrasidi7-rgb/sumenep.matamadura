@@ -3,7 +3,7 @@ import { after, before, describe, test } from "node:test";
 
 import { logActivity } from "@/server/activity-log";
 
-import { connect, rejects, resetData } from "../helpers/db";
+import { connect, DBERR, LAYERS, rawSql, rejects, resetData } from "../helpers/db";
 import { insertAdmin } from "../helpers/fixtures";
 
 const { owner, app, close } = connect();
@@ -22,48 +22,78 @@ before(async () => {
   await logActivity(app, { actor: "SYSTEM", action: "system.seed", meta: { sectionsCreated: 10 } });
 });
 
+// Layers (MariaDB on shared hosting cannot always have all of them):
+//   1. app-level guard on every Prisma client (always)      → GuardError
+//   2. guard triggers, when the server allows CREATE TRIGGER → SIGNAL 1644
+//   3. separate runtime user without UPDATE/DELETE/DROP     → error 1142
 describe("Activity Log is append-only", () => {
-  test("the runtime role can add entries; the time is always the database's", async () => {
-    const before = await owner.activityLog.count();
+  test("the runtime user can add entries; the time is always the database's", async () => {
+    const count = await owner.activityLog.count();
     const row = await app.activityLog.create({
       data: { actor: "SYSTEM", action: "test.backdate", createdAt: new Date("2000-01-01T00:00:00Z") },
     });
-    assert.equal(await owner.activityLog.count(), before + 1);
-    assert.ok(Math.abs(row.createdAt.getTime() - Date.now()) < 60_000, `created_at forced to now(), got ${row.createdAt.toISOString()}`);
+    assert.equal(await owner.activityLog.count(), count + 1);
+    assert.ok(Math.abs(row.createdAt.getTime() - Date.now()) < 60_000, `created_at forced to now, got ${row.createdAt.toISOString()}`);
+    await app.activityLog.createMany({ data: [{ actor: "SYSTEM", action: "test.backdate_many", createdAt: new Date("2000-01-01T00:00:00Z") }] });
+    const many = await owner.activityLog.findFirstOrThrow({ where: { action: "test.backdate_many" } });
+    assert.ok(Math.abs(many.createdAt.getTime() - Date.now()) < 60_000, "createMany cannot backdate either");
   });
 
-  test("UPDATE, DELETE and TRUNCATE are rejected by the trigger — even for the table owner", async () => {
+  test("layer 1 — every update/delete through Prisma is refused, for the owner client too", async () => {
     const state = await snapshot();
-    await rejects(owner.$executeRawUnsafe(`UPDATE "activity_log" SET "summary" = 'diubah'`), /P0001/, /append-only: UPDATE/);
-    await rejects(owner.$executeRawUnsafe(`UPDATE "activity_log" SET "summary" = 'x' WHERE false`), /append-only: UPDATE/);
-    await rejects(owner.$executeRawUnsafe(`DELETE FROM "activity_log"`), /P0001/, /append-only: DELETE/);
-    await rejects(owner.$executeRawUnsafe(`DELETE FROM "activity_log" WHERE "id" = 1`), /append-only: DELETE/);
-    await rejects(owner.$executeRawUnsafe(`TRUNCATE "activity_log"`), /P0001/, /append-only: TRUNCATE/);
-    await rejects(owner.$executeRawUnsafe(`TRUNCATE "admin_user" CASCADE`), /append-only: TRUNCATE/);
-    await rejects(owner.activityLog.updateMany({ data: { summary: "diubah" } }), /append-only: UPDATE/);
-    await rejects(owner.activityLog.deleteMany({}), /append-only: DELETE/);
+    for (const db of [app, owner]) {
+      await rejects(db.activityLog.update({ where: { id: 1n }, data: { summary: "diubah" } }), DBERR.guard, /append-only: UPDATE/);
+      await rejects(db.activityLog.updateMany({ data: { summary: "diubah" } }), DBERR.guard, /append-only: UPDATE/);
+      await rejects(
+        db.activityLog.upsert({ where: { id: 1n }, create: { actor: "SYSTEM", action: "x.y" }, update: { summary: "x" } }),
+        DBERR.guard,
+        /append-only/,
+      );
+      await rejects(db.activityLog.delete({ where: { id: 1n } }), DBERR.guard, /append-only: DELETE/);
+      await rejects(db.activityLog.deleteMany({}), DBERR.guard, /append-only: DELETE/);
+    }
+    // …also inside an interactive transaction.
+    await rejects(
+      app.$transaction((tx) => tx.activityLog.deleteMany({})),
+      DBERR.guard,
+    );
+    // …and as raw SQL through Prisma (template and *Unsafe forms).
+    for (const db of [app, owner]) {
+      await rejects(db.$executeRaw`UPDATE activity_log SET summary = ${"diubah"}`, DBERR.guard, /append-only/);
+      await rejects(db.$executeRawUnsafe("DELETE FROM `activity_log` WHERE id = 1"), DBERR.guard, /append-only/);
+      await rejects(db.$executeRawUnsafe("TRUNCATE TABLE activity_log"), DBERR.guard, /append-only/);
+      await rejects(db.$executeRawUnsafe("DROP TRIGGER IF EXISTS activity_log_append_only_update"), DBERR.guard, /migrations only/);
+    }
+    assert.ok((await owner.$queryRaw<Array<{ n: bigint }>>`SELECT COUNT(*) AS n FROM activity_log`).length === 1, "reading is still allowed");
     assert.equal(await snapshot(), state, "no entry changed");
   });
 
-  test("the runtime role has no UPDATE/DELETE/TRUNCATE privilege at all", async () => {
+  test("layer 2 — the guard triggers reject UPDATE and DELETE even for the owner", { skip: LAYERS.triggers ? false : "server refuses CREATE TRIGGER (binlog, no SUPER)" }, async () => {
     const state = await snapshot();
-    await rejects(app.$executeRawUnsafe(`UPDATE "activity_log" SET "summary" = 'diubah'`), /42501/, /permission denied/);
-    await rejects(app.$executeRawUnsafe(`DELETE FROM "activity_log"`), /42501/);
-    await rejects(app.$executeRawUnsafe(`TRUNCATE "activity_log"`), /42501/);
-    await rejects(app.activityLog.update({ where: { id: 1n }, data: { summary: "diubah" } }), /42501/);
-    await rejects(app.activityLog.delete({ where: { id: 1n } }), /42501/);
-    await rejects(app.activityLog.deleteMany({}), /42501/);
-    await rejects(app.$executeRawUnsafe(`ALTER TABLE "activity_log" DISABLE TRIGGER "activity_log_append_only"`), /must be owner/);
+    await rejects(rawSql("owner", "UPDATE activity_log SET summary = 'diubah'"), DBERR.signal, /append-only: UPDATE/);
+    await rejects(rawSql("owner", "DELETE FROM activity_log"), DBERR.signal, /append-only: DELETE/);
+    await rejects(rawSql("owner", "DELETE FROM activity_log WHERE id = 1"), /append-only: DELETE/);
+    assert.equal(await snapshot(), state, "no entry changed");
+  });
+
+  test("layer 3 — the runtime user has no UPDATE/DELETE/DROP privilege at all", { skip: LAYERS.separateUser ? false : "single-user mode" }, async () => {
+    const state = await snapshot();
+    await rejects(rawSql("app", "UPDATE activity_log SET summary = 'diubah'"), DBERR.privilege);
+    await rejects(rawSql("app", "DELETE FROM activity_log"), DBERR.privilege);
+    await rejects(rawSql("app", "TRUNCATE TABLE activity_log"), DBERR.privilege);
+    await rejects(rawSql("app", "DROP TRIGGER IF EXISTS activity_log_append_only_update"), DBERR.privilege);
     assert.equal(await snapshot(), state, "no entry changed");
   });
 
   test("entries keep their Admin: the Admin cannot be deleted from under them", async () => {
-    await rejects(owner.adminUser.delete({ where: { id: 1 } }), /23503/, /activity_log_admin_id_fkey/);
+    await rejects(owner.adminUser.delete({ where: { id: 1 } }), DBERR.guard);
+    await rejects(rawSql("owner", "DELETE FROM admin_user WHERE id = 1"), LAYERS.triggers ? DBERR.signal : DBERR.foreignKey);
   });
 
-  test("entry format is checked", async () => {
+  test("entry format is checked by the database", async () => {
     await rejects(app.activityLog.create({ data: { actor: "SYSTEM", action: "Bukan Format" } }), /activity_log_action_format/);
     await rejects(app.activityLog.create({ data: { actor: "SYSTEM", action: "tanpatitik" } }), /activity_log_action_format/);
+    await rejects(app.activityLog.create({ data: { actor: "SYSTEM", action: "Auth.Login" } }), /activity_log_action_format/);
     await rejects(app.activityLog.create({ data: { actor: "ADMIN", action: "auth.login" } }), /activity_log_admin_actor_has_admin/);
     await rejects(app.activityLog.create({ data: { actor: "SYSTEM", action: "x.y", meta: [1, 2] } }), /activity_log_meta_object/);
   });

@@ -174,12 +174,12 @@ describe("password change", () => {
 describe("one role, one account", () => {
   test("no role column and no second credential table exist", async () => {
     const roleColumns = await owner.$queryRaw<Array<{ col: string }>>`
-      SELECT table_name || '.' || column_name AS col FROM information_schema.columns
-      WHERE table_schema = 'public' AND column_name ILIKE '%role%'`;
+      SELECT CONCAT(TABLE_NAME, '.', COLUMN_NAME) AS col FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND LOWER(COLUMN_NAME) LIKE '%role%'`;
     assert.deepEqual(roleColumns.map((r) => r.col), ["author.role"], "only the editorial job title of an author profile");
     const passwordColumns = await owner.$queryRaw<Array<{ col: string }>>`
-      SELECT table_name || '.' || column_name AS col FROM information_schema.columns
-      WHERE table_schema = 'public' AND (column_name ILIKE '%password%' OR column_name ILIKE '%token%')`;
+      SELECT CONCAT(TABLE_NAME, '.', COLUMN_NAME) AS col FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND (LOWER(COLUMN_NAME) LIKE '%password%' OR LOWER(COLUMN_NAME) LIKE '%token%')`;
     assert.deepEqual(passwordColumns.map((r) => r.col).sort(), ["admin_session.token_hash", "admin_user.password_changed_at", "admin_user.password_hash"]);
   });
 });

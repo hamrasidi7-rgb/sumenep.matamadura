@@ -6,6 +6,8 @@ import type { PrismaClient } from "@prisma/client";
 
 import { createPrismaClient } from "@/server/db/client";
 
+import { withConnection } from "../../scripts/lib/mariadb";
+
 // Helpers for tests/db/*. They run against the throw-away database created by
 // scripts/test/run-db-tests.ts — never against development or production.
 
@@ -57,19 +59,37 @@ const DATA_TABLES = [
   "media_folder",
 ];
 
+/** Which protection layers this test database has (set by scripts/test/run-db-tests.ts). */
+export const LAYERS = {
+  /** Guard triggers installed (the server allowed CREATE TRIGGER). */
+  triggers: process.env.SUMENEP_TEST_TRIGGERS === "on",
+  /** DATABASE_URL is a separate runtime user with table-level grants. */
+  separateUser:
+    Boolean(process.env.DATABASE_URL && process.env.DIRECT_URL) &&
+    new URL(process.env.DATABASE_URL!).username !== new URL(process.env.DIRECT_URL!).username,
+};
+
 /**
- * Empty every table between test files. Emptying activity_log needs the owner to
- * switch its append-only trigger off for the length of this one transaction —
- * something only the table owner can do (tests/db/04 shows the app role cannot).
+ * Empty every table between test files, on ONE raw owner connection: TRUNCATE
+ * needs DROP, which only the owner has; it fires no trigger; foreign keys are
+ * switched off for this session only. AUTO_INCREMENT starts again at 1.
  */
-export async function resetData(owner: PrismaClient): Promise<void> {
-  await owner.$transaction([
-    owner.$executeRawUnsafe(`ALTER TABLE "activity_log" DISABLE TRIGGER "activity_log_append_only"`),
-    owner.$executeRawUnsafe(`TRUNCATE ${DATA_TABLES.map((t) => `"${t}"`).join(", ")} RESTART IDENTITY CASCADE`),
-    owner.$executeRawUnsafe(`ALTER TABLE "activity_log" ENABLE TRIGGER "activity_log_append_only"`),
-    owner.$executeRawUnsafe(`INSERT INTO "homepage_settings" ("id", "updated_at") VALUES (1, now())`),
-    owner.$executeRawUnsafe(`INSERT INTO "site_settings" ("id", "updated_at") VALUES (1, now())`),
-  ]);
+export async function resetData(_owner?: PrismaClient): Promise<void> {
+  await withConnection(requireUrl("DIRECT_URL"), async (conn) => {
+    await conn.query("SET FOREIGN_KEY_CHECKS = 0");
+    try {
+      for (const table of DATA_TABLES) await conn.query(`TRUNCATE TABLE \`${table}\``);
+    } finally {
+      await conn.query("SET FOREIGN_KEY_CHECKS = 1");
+    }
+    await conn.query("INSERT INTO homepage_settings (id, latest_count, updated_at) VALUES (1, 4, CURRENT_TIMESTAMP(3))");
+    await conn.query("INSERT INTO site_settings (id, social_links, updated_at) VALUES (1, '{}', CURRENT_TIMESTAMP(3))");
+  });
+}
+
+/** One raw SQL statement as `url`'s user (owner: DIRECT_URL, runtime: DATABASE_URL). Bypasses the app guards. */
+export function rawSql(who: "owner" | "app", sql: string, values: unknown[] = []): Promise<unknown> {
+  return withConnection(requireUrl(who === "owner" ? "DIRECT_URL" : "DATABASE_URL"), (conn) => conn.query(sql, values));
 }
 
 /** Message, code, meta and causes of a (Prisma/driver) error, flattened to one string. */
@@ -123,11 +143,22 @@ export function runScript(script: string, args: string[], stdin = ""): ScriptRes
   return { status: result.status ?? 1, stdout: result.stdout, stderr: result.stderr };
 }
 
-/** SQLSTATE codes used in the assertions. */
-export const SQLSTATE = {
-  uniqueViolation: "23505",
-  checkViolation: "23514",
-  foreignKeyViolation: "23503",
-  insufficientPrivilege: "42501",
-  raiseException: "P0001",
+/**
+ * MariaDB error codes used in the assertions (the PostgreSQL SQLSTATE each one
+ * replaces is in brackets). Prisma maps some to its own codes (P2002, P2003).
+ */
+export const DBERR = {
+  /** [23505] duplicate key */
+  unique: /1062|P2002|UniqueConstraintViolation/,
+  /** [23514] CHECK constraint failed */
+  check: /4025|CONSTRAINT .* failed/,
+  /** [23503] foreign key */
+  foreignKey: /1451|1452|P2003|ForeignKeyConstraintViolation/,
+  /** [42501] no privilege */
+  // 1419: with binary logging on, trigger DDL without SUPER is refused before the privilege check.
+  privilege: /1142|1143|1227|1044|1370|1419|command denied|denied to user/,
+  /** [P0001] raised by a trigger (SIGNAL) */
+  signal: /1644/,
+  /** rejected by the app-level guards (src/server/db/guards.ts) */
+  guard: /GuardError/,
 } as const;

@@ -1,5 +1,7 @@
 # Backend CMS · Fase 2: Fondasi database
 
+> **Catatan 24 November 2026:** database CMS dipindahkan dari PostgreSQL ke **MariaDB Hostinger** dan media dari Cloudflare R2 ke **disk Hostinger**. Bagian dokumen ini yang menyebut PostgreSQL, Neon, role/`pg_*`, atau R2 berlaku untuk versi Fase 2–4 (`prisma/postgresql/`). Padanan MariaDB dan alasannya: [10-migrasi-mariadb.md](10-migrasi-mariadb.md).
+
 Status per 21 November 2026: fondasi selesai dan teruji di database lokal yang terisolasi. Branch `backend/fase-2-fondasi`, belum di-push, belum di-deploy. Website produksi tidak berubah.
 
 Yang termasuk Fase 2: Prisma, skema, migrasi, aturan database (satu Admin, Activity Log append-only), bootstrap dan pemulihan Admin lewat CLI, seed kanal/rubrik, dan pengujian.

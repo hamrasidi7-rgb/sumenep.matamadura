@@ -7,6 +7,7 @@ import { mediaByIds, toMediaAsset, toMediaDto } from "@/server/media/service";
 
 import { docToBlocks } from "./blocks";
 import { publicWhere } from "./status";
+import { toTags } from "./tags";
 
 // Database article → ArticleView, the exact shape the SUMENEP article
 // templates already render. This is the adapter that lets the CMS feed the
@@ -67,7 +68,7 @@ async function toView(db: PrismaClient, a: FullArticle, now: Date): Promise<Arti
     template: TEMPLATE[a.template] ?? "standard",
     hero,
     body: blocks,
-    tags: a.tags,
+    tags: toTags(a.tags),
     seo: {
       ...(a.seoTitle ? { title: a.seoTitle } : {}),
       ...(a.seoDescription ? { description: a.seoDescription } : {}),

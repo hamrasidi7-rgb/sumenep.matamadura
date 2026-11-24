@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 
 import { SECTIONS } from "@/content/sections";
+import { createPrismaClient } from "@/server/db/client";
 import { seedInitialData } from "@/server/seed";
 
 import { connect, resetData, runScript } from "../helpers/db";
@@ -56,5 +57,21 @@ describe("seed: kanal and rubrik", () => {
     const run = runScript("scripts/db/seed.ts", []);
     assert.equal(run.status, 0, run.stderr);
     assert.match(run.stdout, /0 kanal\/rubrik baru.*Total: 5 kanal, 5 rubrik/);
+  });
+
+  test("a one-connection client (like the CLI) seeds a fresh database without waiting on the guards", async () => {
+    // Regression: the section-kind guard once queried through the same pool and
+    // waited for the only connection, held by the seed transaction (5 s timeout).
+    await resetData(owner);
+    const single = createPrismaClient(process.env.DIRECT_URL!, { max: 1 });
+    try {
+      const started = Date.now();
+      const result = await seedInitialData(single);
+      assert.equal(result.sectionsCreated, 10);
+      assert.equal(result.homepageRubricCreated, true);
+      assert.ok(Date.now() - started < 4000, `took ${Date.now() - started} ms`);
+    } finally {
+      await single.$disconnect();
+    }
   });
 });

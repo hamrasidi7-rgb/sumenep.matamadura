@@ -4,6 +4,7 @@ import { docMediaIds, docPlainText } from "@/lib/article-doc";
 import { logActivity } from "@/server/activity-log";
 
 import { articleFieldsSchema, bodyFacts, fieldErrors, snapshotOf, type ArticleFields, type ArticleFieldsInput } from "./fields";
+import { lockArticleState, recordArticleChanged, recordArticleCreated } from "./history";
 import { freeSlug, isValidSlug, slugify, slugTakenByOther } from "./slug";
 import { articleState, type ArticleState } from "./status";
 
@@ -118,9 +119,20 @@ async function load(tx: Tx, id: string): Promise<Article> {
   return article;
 }
 
-/** UPDATE … WHERE version = expected; returns the new version or aborts with a conflict. */
+/**
+ * UPDATE … WHERE version = expected; returns the new version or aborts with a
+ * conflict. Records slug and status history in the same transaction (the
+ * PostgreSQL version did this with triggers, see ./history.ts).
+ */
 async function bump(tx: Tx, id: string, expected: number, data: Prisma.ArticleUncheckedUpdateManyInput): Promise<number> {
+  const before = await lockArticleState(tx, id);
   const { count } = await tx.article.updateMany({ where: { id, version: expected }, data: { ...data, version: { increment: 1 } } });
+  if (count === 1 && before) {
+    await recordArticleChanged(tx, id, before, {
+      slug: typeof data.slug === "string" ? data.slug : before.slug,
+      status: typeof data.status === "string" ? data.status : before.status,
+    });
+  }
   if (count === 0) {
     const current = await tx.article.findUnique({ where: { id }, select: { version: true, updatedAt: true } });
     if (!current) throw new Abort(fail("Artikel tidak ditemukan. Mungkin sudah dihapus permanen."));
@@ -176,6 +188,7 @@ export async function createArticle(db: PrismaClient, input: ArticleFieldsInput,
       await checkReferences(tx, fields);
       const slug = await chooseSlug(tx, null, fields.slug, fields.title);
       const article = await tx.article.create({ data: { ...columns(fields), slug, status: "DRAFT" } });
+      await recordArticleCreated(tx, article);
       await syncMediaUsage(tx, article.id, fields);
       await log(tx, actor, "article.create", article);
       return { ok: true as const, id: article.id, version: article.version, slug };

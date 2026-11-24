@@ -1,0 +1,426 @@
+// SUMENEP – Mata Madura · CMS database (PostgreSQL 16)
+//
+// Rules the database itself enforces (see prisma/migrations/*/migration.sql
+// and docs/05-backend-fondasi.md):
+//   - exactly one Admin: admin_user.id is always 1 (PRIMARY KEY + CHECK id = 1)
+//   - activity_log is append-only: triggers reject UPDATE, DELETE and TRUNCATE
+//   - an article's kanal must be a KANAL section and its rubrik a RUBRIK section
+//   - a PUBLISHED article has a publish date, a hero image and a section
+//   - slugs are lowercase-kebab; singletons (settings) always have id = 1
+//
+// Two database roles: the owner runs migrations (DIRECT_URL); the app role used
+// at runtime (DATABASE_URL) only has the DML it needs (scripts/db/grants.ts).
+// The only account role is ADMIN — there is no role column and no user table.
+
+generator client {
+  provider   = "prisma-client-js"
+  // No native query engine: queries are compiled in WebAssembly and sent via
+  // the pure-JS `pg` driver, so nothing platform-specific has to run on Hostinger.
+  engineType = "client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Admin & authentication ──────────────────────────────────────────────────
+
+/// The one and only Admin. id is always 1, so a second row cannot exist.
+model AdminUser {
+  id                Int       @id @default(1)
+  /// Stored lowercase.
+  email             String    @unique
+  name              String
+  /// scrypt$N$r$p$salt$hash (see src/server/auth/password.ts)
+  passwordHash      String    @map("password_hash")
+  /// Consecutive failed logins; 5 → temporary lockout (lockedUntil).
+  failedLoginCount  Int       @default(0) @map("failed_login_count")
+  lockedUntil       DateTime? @map("locked_until") @db.Timestamptz(3)
+  passwordChangedAt DateTime  @default(now()) @map("password_changed_at") @db.Timestamptz(3)
+  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sessions AdminSession[]
+  activity ActivityLog[]
+
+  @@map("admin_user")
+}
+
+/// Server-side session. The cookie holds a random token; only its SHA-256 is stored.
+model AdminSession {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminId       Int       @default(1) @map("admin_id")
+  /// hex SHA-256 of the session token
+  tokenHash     String    @unique @map("token_hash")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastSeenAt    DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  /// At most 8 hours after lastSeenAt (CHECK); extended while the Admin is active.
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokedReason String?   @map("revoked_reason")
+  ip            String?
+  userAgent     String?   @map("user_agent")
+
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, revokedAt, expiresAt])
+  @@index([expiresAt])
+  @@map("admin_session")
+}
+
+/// Every login attempt, for per-IP rate limiting and review.
+model LoginAttempt {
+  id        BigInt   @id @default(autoincrement())
+  /// As typed (lowercased); may not be the Admin's email.
+  email     String
+  ip        String?
+  success   Boolean
+  /// ok | bad_credentials | locked | rate_limited | invalid_input
+  reason    String
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([ip, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("login_attempt")
+}
+
+// ─── Editorial ───────────────────────────────────────────────────────────────
+
+enum SectionKind {
+  KANAL
+  RUBRIK
+
+  @@map("section_kind")
+}
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+
+  @@map("article_status")
+}
+
+enum ArticleTemplate {
+  STANDARD
+  FEATURE
+  SPOTLIGHT
+
+  @@map("article_template")
+}
+
+enum RevisionReason {
+  MANUAL_SAVE
+  PUBLISH
+  RESTORE
+
+  @@map("revision_reason")
+}
+
+enum ArticleMediaUsage {
+  BODY
+  GALLERY
+
+  @@map("article_media_usage")
+}
+
+/// Author profile shown on articles. Editorial data only — never a login account.
+model Author {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug      String   @unique
+  name      String
+  /// e.g. "Redaksi", "Kontributor Kepulauan"
+  role      String   @default("")
+  bio       String?
+  avatarId  String?  @map("avatar_id") @db.Uuid
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  avatar   Media?    @relation("AuthorAvatar", fields: [avatarId], references: [id], onDelete: Restrict)
+  articles Article[]
+
+  @@map("author")
+}
+
+/// Kanal (KANAL) and rubrik (RUBRIK), managed in the CMS. kind never changes.
+model Section {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind        SectionKind
+  slug        String
+  name        String
+  description String      @default("")
+  /// Navigation order within its kind.
+  sortOrder   Int         @default(0) @map("sort_order")
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  kanalArticles   Article[]        @relation("ArticleKanal")
+  rubrikArticles  Article[]        @relation("ArticleRubrik")
+  homepageRubrics HomepageRubric[]
+
+  @@unique([kind, slug])
+  @@index([kind, isActive, sortOrder])
+  @@map("section")
+}
+
+/// Public when status = PUBLISHED, publishedAt <= now() and deletedAt IS NULL.
+/// PUBLISHED with a future publishedAt = scheduled.
+model Article {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug             String          @unique
+  title            String
+  /// Lead paragraph (dek) under the title.
+  standfirst       String          @default("")
+  template         ArticleTemplate @default(STANDARD)
+  status           ArticleStatus   @default(DRAFT)
+  /// Editor document (JSON), converted to ArticleBlock[] by the content adapter.
+  body             Json            @default("{}")
+  /// Plain text of the body, for search and reading time.
+  bodyText         String          @default("") @map("body_text")
+  readingMinutes   Int             @default(1) @map("reading_minutes")
+  authorId         String          @map("author_id") @db.Uuid
+  kanalId          String?         @map("kanal_id") @db.Uuid
+  rubrikId         String?         @map("rubrik_id") @db.Uuid
+  heroMediaId      String?         @map("hero_media_id") @db.Uuid
+  tags             String[]        @default([])
+  seoTitle         String?         @map("seo_title")
+  seoDescription   String?         @map("seo_description")
+  canonicalUrl     String?         @map("canonical_url")
+  ogMediaId        String?         @map("og_media_id") @db.Uuid
+  hideFromHomepage Boolean         @default(false) @map("hide_from_homepage")
+  /// Design sample content, not factual news.
+  isDemo           Boolean         @default(false) @map("is_demo")
+  publishedAt      DateTime?       @map("published_at") @db.Timestamptz(3)
+  archivedAt       DateTime?       @map("archived_at") @db.Timestamptz(3)
+  /// Trash (soft delete). Restorable until purged.
+  deletedAt        DateTime?       @map("deleted_at") @db.Timestamptz(3)
+  /// Optimistic locking: every save must send the version it started from.
+  version          Int             @default(1)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  author    Author   @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  kanal     Section? @relation("ArticleKanal", fields: [kanalId], references: [id], onDelete: Restrict)
+  rubrik    Section? @relation("ArticleRubrik", fields: [rubrikId], references: [id], onDelete: Restrict)
+  heroMedia Media?   @relation("ArticleHero", fields: [heroMediaId], references: [id], onDelete: Restrict)
+  ogMedia   Media?   @relation("ArticleOg", fields: [ogMediaId], references: [id], onDelete: Restrict)
+
+  slugHistory   ArticleSlugHistory[]
+  revisions     ArticleRevision[]
+  statusChanges ArticleStatusChange[]
+  media         ArticleMedia[]
+  homepageHero  HomepageSettings[]
+  homepageSlot  HomepageFeatured?
+
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([kanalId, status, publishedAt(sort: Desc)])
+  @@index([rubrikId, status, publishedAt(sort: Desc)])
+  @@index([authorId, status, publishedAt(sort: Desc)])
+  @@index([deletedAt])
+  @@index([tags], type: Gin)
+  @@map("article")
+}
+
+/// Old slugs → 301 to the article's current slug. Filled by a trigger.
+model ArticleSlugHistory {
+  slug      String   @id
+  articleId String   @map("article_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@map("article_slug_history")
+}
+
+/// Snapshot of the editable fields on manual save, publish or restore.
+model ArticleRevision {
+  id        BigInt         @id @default(autoincrement())
+  articleId String         @map("article_id") @db.Uuid
+  /// article.version the snapshot was taken from
+  version   Int
+  reason    RevisionReason
+  snapshot  Json
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId, createdAt(sort: Desc)])
+  @@map("article_revision")
+}
+
+/// Status history (NULL → DRAFT, DRAFT → PUBLISHED, …). Filled by a trigger.
+model ArticleStatusChange {
+  id         BigInt         @id @default(autoincrement())
+  articleId  String         @map("article_id") @db.Uuid
+  fromStatus ArticleStatus? @map("from_status")
+  toStatus   ArticleStatus  @map("to_status")
+  changedAt  DateTime       @default(now()) @map("changed_at") @db.Timestamptz(3)
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId, changedAt])
+  @@map("article_status_change")
+}
+
+/// Media used inside an article body or gallery. Keeps media in use from being deleted.
+model ArticleMedia {
+  articleId String            @map("article_id") @db.Uuid
+  mediaId   String            @map("media_id") @db.Uuid
+  usage     ArticleMediaUsage
+  /// Gallery order (0-based); 0 for BODY.
+  position  Int               @default(0)
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  media   Media   @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+
+  @@id([articleId, usage, mediaId])
+  @@index([mediaId])
+  @@map("article_media")
+}
+
+// ─── Media ───────────────────────────────────────────────────────────────────
+
+/// File in the S3-compatible bucket (Cloudflare R2). The database stores metadata only.
+model Media {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Object key of the original in the bucket.
+  storageKey   String   @unique @map("storage_key")
+  originalName String   @map("original_name")
+  mimeType     String   @map("mime_type")
+  sizeBytes    Int      @map("size_bytes")
+  width        Int?
+  height       Int?
+  /// hex SHA-256 of the original — prevents duplicate uploads.
+  sha256       String   @unique
+  alt          String   @default("")
+  caption      String?
+  credit       String?
+  /// Resized renditions: [{ key, width, height, sizeBytes, format }]
+  variants     Json     @default("[]")
+  folderId     String?  @map("folder_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  folder        MediaFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  heroOf        Article[]      @relation("ArticleHero")
+  ogOf          Article[]      @relation("ArticleOg")
+  usages        ArticleMedia[]
+  authorAvatars Author[]       @relation("AuthorAvatar")
+  siteDefaultOg SiteSettings[]
+
+  @@index([folderId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("media")
+}
+
+/// One level of folders (no nesting).
+model MediaFolder {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  media Media[]
+
+  @@map("media_folder")
+}
+
+// ─── Site & homepage ─────────────────────────────────────────────────────────
+
+/// Singleton (id = 1). Homepage order is fixed in code: Hero, Tulisan Pilihan,
+/// Catatan Sumenep, Berita Terbaru — this row only chooses what fills it.
+model HomepageSettings {
+  id            Int      @id @default(1)
+  /// Berita utama chosen by the editors; null → newest eligible article.
+  heroArticleId String?  @map("hero_article_id") @db.Uuid
+  /// Items in Berita Terbaru.
+  latestCount   Int      @default(4) @map("latest_count")
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  heroArticle Article? @relation(fields: [heroArticleId], references: [id], onDelete: SetNull)
+
+  @@map("homepage_settings")
+}
+
+/// Tulisan Pilihan, in the editors' order.
+model HomepageFeatured {
+  articleId String @id @map("article_id") @db.Uuid
+  position  Int    @unique
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@map("homepage_featured")
+}
+
+/// Featured rubrik bands (the first one is the Catatan Sumenep band).
+model HomepageRubric {
+  sectionId String @id @map("section_id") @db.Uuid
+  position  Int    @unique
+  itemCount Int    @default(3) @map("item_count")
+
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+
+  @@map("homepage_rubric")
+}
+
+/// Singleton (id = 1). Empty values fall back to the defaults in src/lib/site.ts.
+/// Indexing (noindex) is NOT stored here: it is switched by deployment config.
+model SiteSettings {
+  id               Int      @id @default(1)
+  tagline          String?
+  description      String?
+  contactEmail     String?  @map("contact_email")
+  /// { "facebook": "https://…", "instagram": "…", … }
+  socialLinks      Json     @default("{}") @map("social_links")
+  defaultOgMediaId String?  @map("default_og_media_id") @db.Uuid
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  defaultOgMedia Media? @relation(fields: [defaultOgMediaId], references: [id], onDelete: Restrict)
+
+  @@map("site_settings")
+}
+
+// ─── Audit ───────────────────────────────────────────────────────────────────
+
+enum ActivityActor {
+  /// The Admin, through the CMS.
+  ADMIN
+  /// An operator running a CLI script on the server (bootstrap, recover).
+  CLI
+  /// Automatic jobs (seed, scheduled maintenance).
+  SYSTEM
+
+  @@map("activity_actor")
+}
+
+/// Append-only audit trail. UPDATE, DELETE and TRUNCATE are rejected by triggers,
+/// and the app role has no UPDATE/DELETE/TRUNCATE privilege on this table.
+model ActivityLog {
+  id         BigInt        @id @default(autoincrement())
+  actor      ActivityActor
+  /// Set when actor = ADMIN (CHECK).
+  adminId    Int?          @map("admin_id")
+  /// dotted lowercase, e.g. "auth.login", "article.publish", "admin.recover"
+  action     String
+  entityType String?       @map("entity_type")
+  entityId   String?       @map("entity_id")
+  summary    String        @default("")
+  meta       Json          @default("{}")
+  ip         String?
+  userAgent  String?       @map("user_agent")
+  /// Always the database time of the insert (a trigger overrides any value sent).
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  admin AdminUser? @relation(fields: [adminId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@map("activity_log")
+}

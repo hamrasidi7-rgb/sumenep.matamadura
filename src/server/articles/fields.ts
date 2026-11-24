@@ -3,6 +3,7 @@ import { z } from "zod";
 import { docPlainText, type DocNode } from "@/lib/article-doc";
 
 import { sanitizeDoc } from "./sanitize";
+import { toTags } from "./tags";
 
 // Every field the editor can change, validated on the server for every save
 // (autosave, manual save, publish). The body is sanitised here, so nothing
@@ -92,7 +93,7 @@ export function snapshotOf(article: {
   kanalId: string | null;
   rubrikId: string | null;
   heroMediaId: string | null;
-  tags: string[];
+  tags: unknown;
   seoTitle: string | null;
   seoDescription: string | null;
   canonicalUrl: string | null;
@@ -111,7 +112,7 @@ export function snapshotOf(article: {
     kanalId: article.kanalId,
     rubrikId: article.rubrikId,
     heroMediaId: article.heroMediaId,
-    tags: article.tags,
+    tags: toTags(article.tags),
     seoTitle: article.seoTitle,
     seoDescription: article.seoDescription,
     canonicalUrl: article.canonicalUrl,

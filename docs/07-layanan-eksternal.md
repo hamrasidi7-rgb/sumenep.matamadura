@@ -1,5 +1,7 @@
 # Layanan eksternal: PostgreSQL terkelola dan penyimpanan media
 
+> **Catatan 24 November 2026:** database CMS dipindahkan dari PostgreSQL ke **MariaDB Hostinger** dan media dari Cloudflare R2 ke **disk Hostinger**. Bagian dokumen ini yang menyebut PostgreSQL, Neon, role/`pg_*`, atau R2 berlaku untuk versi Fase 2–4 (`prisma/postgresql/`). Padanan MariaDB dan alasannya: [10-migrasi-mariadb.md](10-migrasi-mariadb.md).
+
 Status: **laporan untuk persetujuan**. Belum ada akun, langganan, atau layanan berbayar yang dibuat atau diaktifkan.
 
 Konteks keputusan (Opsi 1, disetujui): aplikasi tetap di Hostinger Web Apps. Database PostgreSQL dan media memakai layanan eksternal, karena Web Apps tidak menyediakan PostgreSQL maupun disk yang bertahan antar-deploy.

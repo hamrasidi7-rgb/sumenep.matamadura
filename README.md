@@ -5,7 +5,7 @@ Media editorial untuk `sumenep.matamaduranews.com`.
 
 Aplikasi ini berdiri sendiri. Ia tidak mengubah WordPress `matamaduranews.com`, database, media, maupun DNS-nya.
 
-**Stack:** Next.js 16.4 (App Router) · React 19.3 · TypeScript · Tailwind CSS v4 · lucide-react. Font Newsreader, Lora, dan Inter di-host sendiri lewat `next/font`. Backend CMS: Prisma 6.19 + PostgreSQL 16 + Zod (fondasi: [docs/05-backend-fondasi.md](docs/05-backend-fondasi.md)).
+**Stack:** Next.js 16.4 (App Router) · React 19.3 · TypeScript · Tailwind CSS v4 · lucide-react. Font Newsreader, Lora, dan Inter di-host sendiri lewat `next/font`. Backend CMS: Prisma 6.19 + MariaDB (Hostinger) + Zod (fondasi: [docs/05-backend-fondasi.md](docs/05-backend-fondasi.md); migrasi dari PostgreSQL: [docs/10-migrasi-mariadb.md](docs/10-migrasi-mariadb.md)).
 
 ## Status
 
@@ -49,7 +49,7 @@ Hasilnya disimpan di `qa/shots/` dan `qa/report.json`.
 ### Backend (development)
 
 ```bash
-npm run db:setup           # PostgreSQL 16 lokal terisolasi + .env/.env.test (password acak)
+npm run db:setup           # MariaDB lokal terisolasi (.data/mariadb) + .env/.env.test (password acak)
 npm run db:migrate:dev     # terapkan/buat migrasi, lalu hak akses
 npm run db:seed            # 5 kanal + 5 rubrik + band Catatan Sumenep
 npm run db:verify          # cek read-only: migrasi, constraint, trigger, satu Admin, hak role runtime
@@ -57,7 +57,9 @@ npm run admin:bootstrap -- --email … --name "…"   # Admin pertama (satu-satu
 npm run admin:recover -- status                    # pemulihan: lihat docs/05
 npm test                   # tes unit + tes database (database sementara)
 npm run test:e2e           # build produksi + server :3301 + Chrome headless (database sementara)
-npm run prod:smoke         # cek read-only website live: halaman, keamanan admin, PostgreSQL, R2
+npm run prod:smoke         # cek read-only website live: halaman, keamanan admin, database, media
+npm run test:backup        # uji backup → restore (database + media) pada MariaDB lokal
+npm run backup -- --env-file <f> --out <folder> [--media-root <folder>]   # backup + manifest SHA-256
 ```
 
 ## Struktur

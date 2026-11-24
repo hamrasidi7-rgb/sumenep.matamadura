@@ -1,5 +1,7 @@
 # Rancangan cache, sitemap/RSS, dan noindex
 
+> **Catatan 24 November 2026:** database CMS dipindahkan dari PostgreSQL ke **MariaDB Hostinger** dan media dari Cloudflare R2 ke **disk Hostinger**. Bagian dokumen ini yang menyebut PostgreSQL, Neon, role/`pg_*`, atau R2 berlaku untuk versi Fase 2–4 (`prisma/postgresql/`). Padanan MariaDB dan alasannya: [10-migrasi-mariadb.md](10-migrasi-mariadb.md).
+
 Status: **rancangan**, disiapkan di Fase 2 sebelum integrasi CMS. Belum ada kode atau konfigurasi produksi yang diubah. Implementasinya di Fase 8 (integrasi) dan Fase 7 (SEO), dan deployment-nya menunggu persetujuan.
 
 Tujuan:
