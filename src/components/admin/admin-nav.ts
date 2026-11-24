@@ -59,6 +59,7 @@ export const ADMIN_NAV: readonly AdminNavEntry[] = [
   { href: "/admin/seksi", label: "Kanal & Rubrik", icon: "sections" },
   { href: "/admin/penulis", label: "Penulis", icon: "authors" },
   { href: "/admin/aktivitas", label: "Aktivitas", icon: "activity" },
+  { href: "/admin/pengaturan", label: "Pengaturan", icon: "settings" },
   { href: "/admin/akun", label: "Akun & Keamanan", icon: "shield" },
 ];
 
