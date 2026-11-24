@@ -1,5 +1,3 @@
-import os from "node:os";
-
 // DATABASE_URL as people really type it into a hosting panel: the password is
 // often not URL-encoded (it may contain @ # / ? : %), the host is often
 // "localhost" while Hostinger documents 127.0.0.1 for Node.js apps, and quotes
@@ -55,27 +53,46 @@ export function parseDatabaseUrl(raw: string): DatabaseParts {
   };
 }
 
-/** Running in a Hostinger web hosting account (home /home/u123456789)? */
-export const onHostinger = (home = os.homedir()) => /^\/home\/u\d+(?:\/|$)/.test(home);
-
 /**
- * The host to connect to. "localhost" becomes 127.0.0.1 (the mariadb driver always
- * uses TCP; Hostinger's docs say 127.0.0.1 for Node.js). On Hostinger the server's
- * own name (srvNNN.hstgr.io) is the same machine, where the database only accepts
- * local connections, so it becomes 127.0.0.1 too.
+ * The host to connect to: exactly the configured one. Only the spelling
+ * "localhost" becomes 127.0.0.1, the same machine — the mariadb driver always uses
+ * TCP, and Hostinger's docs say 127.0.0.1 for Node.js apps (Node may resolve
+ * "localhost" to IPv6 ::1). A real host name, such as the Hostinger server name, is
+ * never swapped for a local address.
  */
-export function effectiveHost(host: string, hostinger = onHostinger()): string {
+export function effectiveHost(host: string): string {
   const h = host.toLowerCase();
   if (h === "localhost" || h === "::1" || h === "[::1]") return "127.0.0.1";
-  if (hostinger && h.endsWith(".hstgr.io")) return "127.0.0.1";
   return host;
 }
 
-export function canonicalDatabaseUrl(parts: DatabaseParts, hostinger = onHostinger()): string {
+export const isLocalHost = (host: string) => effectiveHost(host) === "127.0.0.1";
+
+/** Where the connection settings come from and where they point, without values: for /api/status. */
+export function describeDatabaseConfig(env: Record<string, string | undefined> = process.env) {
+  let parts: DatabaseParts | null = null;
+  try {
+    parts = configuredDatabaseParts(env);
+  } catch {
+    return { sumber: "DATABASE_URL tidak bisa dibaca" };
+  }
+  if (!parts) return { sumber: "belum diisi" };
+  const fromUrl = Boolean(env.DATABASE_URL?.trim());
+  const hostSet = fromUrl || Boolean(first(env, ["DB_HOST", "DATABASE_HOST", "MYSQL_HOST"]));
+  return {
+    sumber: fromUrl ? "DATABASE_URL" : "DB_USER/DB_PASSWORD/DB_NAME",
+    host: parts.socket
+      ? "socket lokal"
+      : `${hostSet ? "diisi" : "tidak diisi, bawaan"}: ${isLocalHost(parts.host) ? "127.0.0.1 (server yang sama)" : "nama server lain"}`,
+    port: parts.socket ? "-" : parts.port,
+  };
+}
+
+export function canonicalDatabaseUrl(parts: DatabaseParts): string {
   const auth = `${encodeURIComponent(parts.user)}:${encodeURIComponent(parts.password)}`;
   const database = encodeURIComponent(parts.database);
   if (parts.socket) return `mysql://${auth}@localhost/${database}?socket=${encodeURIComponent(parts.socket).replace(/%2F/gi, "/")}`;
-  const host = effectiveHost(parts.host, hostinger);
+  const host = effectiveHost(parts.host);
   const ssl = parts.ssl && host !== "127.0.0.1";
   return `mysql://${auth}@${host}:${parts.port}/${database}${ssl ? "?ssl=true" : ""}`;
 }
@@ -90,7 +107,7 @@ export function configuredDatabaseParts(env: Record<string, string | undefined> 
 }
 
 /** Zero-width characters and BOMs that ride along when a value is copied from a web page. */
-const INVISIBLE = /[​-‍⁠﻿]/g;
+const INVISIBLE = /[\u200B-\u200D\u2060\uFEFF]/g;
 
 /** A value as pasted into a panel: invisible characters dropped, one pair of surrounding quotes removed. */
 export function cleanPanelValue(value: string): string {
@@ -122,10 +139,10 @@ export function databasePartsFromEnv(env: Record<string, string | undefined>): D
 }
 
 /** DATABASE_URL of the web app (or DB_HOST/DB_USER/DB_PASSWORD/DB_NAME), canonicalised; value-free errors. */
-export function runtimeDatabaseUrl(env: Record<string, string | undefined> = process.env, hostinger = onHostinger()): string {
+export function runtimeDatabaseUrl(env: Record<string, string | undefined> = process.env): string {
   const parts = configuredDatabaseParts(env);
   if (!parts) throw new Error("DATABASE_URL belum diisi (atau DB_HOST, DB_USER, DB_PASSWORD, DB_NAME).");
   if (!parts.user) throw new Error(`DATABASE_URL tidak memuat nama user (${FORMAT})`);
   if (!parts.database) throw new Error(`DATABASE_URL tidak memuat nama database (${FORMAT})`);
-  return canonicalDatabaseUrl(parts, hostinger);
+  return canonicalDatabaseUrl(parts);
 }

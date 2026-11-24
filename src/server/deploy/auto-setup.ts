@@ -24,7 +24,7 @@ import mariadb from "mariadb";
 
 import { adminExists, bootstrapAdmin } from "@/server/admin/bootstrap";
 import { createPrismaClient, poolConfig, SESSION_SETUP_SQL } from "@/server/db/client";
-import { canonicalDatabaseUrl, configuredDatabaseParts, effectiveHost, type DatabaseParts, runtimeDatabaseUrl } from "@/server/db/url";
+import { canonicalDatabaseUrl, configuredDatabaseParts, type DatabaseParts, isLocalHost, runtimeDatabaseUrl } from "@/server/db/url";
 import { resolveStorageSelection } from "@/server/media/storage";
 import { seedInitialData } from "@/server/seed";
 import { adminBootstrapSchema, firstIssue } from "@/server/validation/admin";
@@ -147,7 +147,11 @@ function loginHints(error: unknown, parts: DatabaseParts, socketsTried: number):
   } catch {
     // no account name available: skip the prefix hints
   }
-  hints.push(socketsTried ? `jalur socket lokal juga dicoba (${socketsTried}) dan ditolak` : "tidak ada socket lokal untuk dicoba");
+  if (!isLocalHost(parts.host) && !parts.socket) {
+    hints.push("host database diisi nama server; untuk aplikasi Node.js di akun yang sama dokumentasi Hostinger memakai 127.0.0.1 (DB_HOST dikosongkan)");
+  } else {
+    hints.push(socketsTried ? `jalur socket lokal juga dicoba (${socketsTried}) dan ditolak` : "tidak ada socket lokal untuk dicoba");
+  }
   return ` (${hints.join("; ")})`;
 }
 
@@ -169,7 +173,7 @@ async function databaseSteps() {
     tables = await listTables(url);
   } catch (firstError) {
     const refused = [1045, 1130].includes((firstError as { errno?: number }).errno ?? 0);
-    const local = !parts.socket && effectiveHost(parts.host) === "127.0.0.1";
+    const local = !parts.socket && isLocalHost(parts.host);
     const sockets = refused && local ? SOCKETS.filter((s) => fs.existsSync(s)) : [];
     for (const socket of sockets) {
       const candidate = canonicalDatabaseUrl({ ...parts, socket });

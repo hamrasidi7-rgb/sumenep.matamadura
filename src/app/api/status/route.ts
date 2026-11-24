@@ -1,3 +1,4 @@
+import { describeDatabaseConfig } from "@/server/db/url";
 import { setupStatus } from "@/server/deploy/status";
 
 export const dynamic = "force-dynamic";
@@ -12,12 +13,13 @@ const presence = (name: string) => {
 // running app can see (never their values), so a deploy can be checked from outside.
 export function GET() {
   const related = Object.keys(process.env)
-    .filter((name) => /^(?:DATABASE|DB|MYSQL|ADMIN)(?:_|$)/.test(name))
+    .filter((name) => /^(?:DATABASE|DB|MYSQL|ADMIN)(?:_|$)/.test(name) && name !== "DB_SOCKET")
     .sort();
   return Response.json(
     {
       build: process.env.SUMENEP_BUILD ?? "tidak diketahui",
       setup: setupStatus(),
+      database: describeDatabaseConfig(),
       variabel: {
         DATABASE_URL: presence("DATABASE_URL"),
         ADMIN_EMAIL: presence("ADMIN_EMAIL"),
