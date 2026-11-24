@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ArticleEditor } from "@/components/admin/articles/ArticleEditor";
 import { articleListUrl, parseArticleListState } from "@/lib/admin-pagination";
+import { articleStatusHistory } from "@/server/activity/queries";
 import { articleForEditor, editorOptions } from "@/server/articles/queries";
 import { revisionList } from "@/server/articles/service";
 import { requireAdmin } from "@/server/auth/next";
@@ -23,7 +24,12 @@ export default async function EditArticlePage({
   const [{ id }, query] = await Promise.all([params, searchParams]);
   if (!UUID.test(id)) notFound();
   const db = getDb();
-  const [data, options, revisions] = await Promise.all([articleForEditor(db, id), editorOptions(db), revisionList(db, id)]);
+  const [data, options, revisions, statusHistory] = await Promise.all([
+    articleForEditor(db, id),
+    editorOptions(db),
+    revisionList(db, id),
+    articleStatusHistory(db, id),
+  ]);
   if (!data) notFound();
   const backHref = articleListUrl(parseArticleListState(query));
   return (
@@ -35,6 +41,7 @@ export default async function EditArticlePage({
         defaultAuthorId={null}
         backHref={backHref}
         revisions={revisions.map((r) => ({ id: r.id.toString(), version: r.version, reason: r.reason, createdAt: r.createdAt.toISOString() }))}
+        statusHistory={statusHistory}
       />
     </main>
   );

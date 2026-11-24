@@ -45,6 +45,7 @@ function ToolButton({ active, onClick, label, children, disabled }: { active?: b
   return (
     <button
       type="button"
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       disabled={disabled}
       aria-label={label}

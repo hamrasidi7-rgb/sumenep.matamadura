@@ -29,7 +29,7 @@ import {
   saveArticleAction,
   updateMediaMetaAction,
 } from "@/app/(admin)/admin/(panel)/artikel/actions";
-import { formatWib } from "@/components/admin/format";
+import { articleStatusLabel, formatWib } from "@/components/admin/format";
 import { Notice } from "@/components/admin/Notice";
 import { WordCounter } from "@/components/admin/WordCounter";
 import { EMPTY_DOC, type DocNode } from "@/lib/article-doc";
@@ -92,6 +92,7 @@ export interface EditorProps {
   defaultAuthorId: string | null;
   backHref?: string;
   revisions: { id: string; version: number; reason: string; createdAt: string }[];
+  statusHistory?: { id: string; fromStatus: string | null; toStatus: string; changedAt: string }[];
 }
 
 type SaveStatus = "idle" | "pending" | "saving" | "saved" | "offline" | "error" | "conflict" | "live";
@@ -785,6 +786,23 @@ function Editor(props: EditorProps) {
                     <li key={r.id} className="flex items-center justify-between gap-2 py-2">
                       <span>{REASON[r.reason] ?? r.reason} · v{r.version}<br /><span className="text-xs text-muted">{formatWib(new Date(r.createdAt))}</span></span>
                       <button type="button" className="text-xs font-semibold text-brand hover:underline" onClick={() => void loadRevision(r.id)} disabled={trashed}>Muat ke editor</button>
+                    </li>
+                  ))}
+                </ul>
+              </SettingsSection>
+            )}
+
+            {props.statusHistory && props.statusHistory.length > 0 && (
+              <SettingsSection title="Riwayat status" summary={`${props.statusHistory.length} transisi status`}>
+                <ul className="divide-y divide-line text-xs">
+                  {props.statusHistory.map((item) => (
+                    <li key={item.id} className="py-2 first:pt-0 last:pb-0">
+                      <p className="font-semibold text-ink">
+                        {item.fromStatus
+                          ? `${articleStatusLabel(item.fromStatus)} → ${articleStatusLabel(item.toStatus)}`
+                          : articleStatusLabel(item.toStatus)}
+                      </p>
+                      <p className="mt-0.5 text-muted">{formatWib(new Date(item.changedAt))}</p>
                     </li>
                   ))}
                 </ul>

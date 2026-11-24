@@ -17,6 +17,7 @@ describe("admin sidebar navigation", () => {
       "/admin/media",
       "/admin/seksi",
       "/admin/penulis",
+      "/admin/aktivitas",
       "/admin/akun",
     ]);
     assert.equal(hrefs.includes("/admin/pengguna"), false);
@@ -68,6 +69,7 @@ describe("admin sidebar navigation", () => {
       "/admin/media",
       "/admin/seksi",
       "/admin/penulis",
+      "/admin/aktivitas",
       "/admin/akun",
     ]) {
       const active = links.filter((l) => isNavLinkActive(path, l));

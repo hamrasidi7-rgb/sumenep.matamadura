@@ -96,8 +96,34 @@ const ACTIONS: Record<string, string> = {
   "section.update": "Kanal/rubrik diperbarui",
   "section.toggle": "Status kanal/rubrik diubah",
   "section.delete": "Kanal/rubrik dihapus",
+  "site.settings_update": "Pengaturan situs diperbarui",
+  "homepage.update": "Susunan beranda diperbarui",
+};
+
+const LOGIN_REASONS: Record<string, string> = {
+  ok: "Berhasil",
+  bad_credentials: "Kredensial salah",
+  locked: "Akun dikunci sementara",
+  rate_limited: "Batas percobaan (rate limit)",
+  invalid_input: "Masukan tidak valid",
+};
+
+const ARTICLE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Draf",
+  SCHEDULED: "Terjadwal",
+  PUBLISHED: "Terbit",
+  ARCHIVED: "Arsip",
 };
 
 export function activityLabel(action: string): string {
   return ACTIONS[action] ?? action;
+}
+
+export function loginReasonLabel(reason: string): string {
+  return LOGIN_REASONS[reason] ?? reason;
+}
+
+export function articleStatusLabel(status: string | null | undefined): string {
+  if (!status) return "Baru";
+  return ARTICLE_STATUS_LABELS[status] ?? status;
 }
