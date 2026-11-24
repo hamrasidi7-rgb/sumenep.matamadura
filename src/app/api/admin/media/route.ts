@@ -11,8 +11,16 @@ export async function GET(request: Request) {
   const guard = await requireAdminApi(request);
   if ("response" in guard) return guard.response;
   const url = new URL(request.url);
-  const media = await recentMedia(getDb(), url.searchParams.get("q") ?? "", Number(url.searchParams.get("limit")) || 30);
-  return jsonResponse({ media });
+  const db = getDb();
+  const folderParam = url.searchParams.get("folder");
+  const [media, folders] = await Promise.all([
+    recentMedia(db, url.searchParams.get("q") ?? "", Number(url.searchParams.get("limit")) || 30, folderParam),
+    db.mediaFolder.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
+  return jsonResponse({ media, folders });
 }
 
 export async function POST(request: Request) {
@@ -36,11 +44,16 @@ export async function POST(request: Request) {
     const value = form.get(name);
     return typeof value === "string" ? value : "";
   };
+  const rawFolderId = text("folderId").trim();
+  const folderId = rawFolderId ? rawFolderId : null;
+  if (folderId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(folderId)) {
+    return jsonResponse({ error: "Folder media tidak valid." }, 422);
+  }
   try {
     const result = await uploadImage(
       getDb(),
       { name: file.name, bytes: Buffer.from(await file.arrayBuffer()) },
-      { alt: text("alt"), caption: text("caption"), credit: text("credit") },
+      { alt: text("alt"), caption: text("caption"), credit: text("credit"), folderId },
       { adminId: guard.session.admin.id, ip: guard.ip, userAgent: guard.userAgent },
     );
     return jsonResponse(result, result.duplicate ? 200 : 201);

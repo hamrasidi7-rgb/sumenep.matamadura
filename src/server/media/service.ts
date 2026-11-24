@@ -34,6 +34,7 @@ export const mediaMetaSchema = z.object({
   alt: z.string().trim().max(500).default(""),
   caption: z.string().trim().max(500).default(""),
   credit: z.string().trim().max(200).default(""),
+  folderId: z.uuid().nullable().optional(),
 });
 export type MediaMeta = z.input<typeof mediaMetaSchema>;
 
@@ -47,9 +48,14 @@ export interface MediaDto {
   alt: string;
   caption: string;
   credit: string;
+  folderId: string | null;
 }
 
-export function toMediaDto(media: Pick<Media, "id" | "storageKey" | "width" | "height" | "alt" | "caption" | "credit">): MediaDto {
+export function toMediaDto(
+  media: Pick<Media, "id" | "storageKey" | "width" | "height" | "alt" | "caption" | "credit"> & {
+    folderId?: string | null;
+  },
+): MediaDto {
   return {
     id: media.id,
     src: mediaUrl(media.storageKey),
@@ -58,6 +64,7 @@ export function toMediaDto(media: Pick<Media, "id" | "storageKey" | "width" | "h
     alt: media.alt,
     caption: media.caption ?? "",
     credit: media.credit ?? "",
+    folderId: media.folderId ?? null,
   };
 }
 
@@ -96,6 +103,12 @@ export async function processImage(bytes: Buffer): Promise<{ data: Buffer; width
   return { data, width: info.width, height: info.height };
 }
 
+async function assertFolderExists(db: PrismaClient | Prisma.TransactionClient, folderId: string | null | undefined) {
+  if (!folderId) return;
+  const folder = await db.mediaFolder.findUnique({ where: { id: folderId }, select: { id: true } });
+  if (!folder) throw new MediaError("Folder media tidak ditemukan.");
+}
+
 export async function uploadImage(
   db: PrismaClient,
   file: { name: string; bytes: Buffer },
@@ -108,6 +121,7 @@ export async function uploadImage(
   const existing = await db.media.findUnique({ where: { sha256 } });
   if (existing) return { media: toMediaDto(existing), duplicate: true };
 
+  await assertFolderExists(db, fields.folderId);
   const processed = await processImage(file.bytes);
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
   const key = `${now.getUTCFullYear()}/${month}/${sha256.slice(0, 16)}.webp`;
@@ -128,6 +142,7 @@ export async function uploadImage(
           alt: fields.alt,
           caption: fields.caption || null,
           credit: fields.credit || null,
+          folderId: fields.folderId ?? null,
         },
       });
       await logActivity(tx, {
@@ -137,7 +152,12 @@ export async function uploadImage(
         entityType: "media",
         entityId: created.id,
         summary: `Gambar diunggah: ${created.originalName}`,
-        meta: { width: processed.width, height: processed.height, bytes: processed.data.length },
+        meta: {
+          width: processed.width,
+          height: processed.height,
+          bytes: processed.data.length,
+          ...(fields.folderId ? { folderId: fields.folderId } : {}),
+        },
         ip: actor.ip,
         userAgent: actor.userAgent,
       });
@@ -159,10 +179,16 @@ export async function updateMediaMeta(
   actor: { adminId: number; ip?: string | null; userAgent?: string | null },
 ): Promise<MediaDto> {
   const fields = mediaMetaSchema.parse(meta);
+  if (fields.folderId) await assertFolderExists(db, fields.folderId);
   return db.$transaction(async (tx) => {
     const media = await tx.media.update({
       where: { id },
-      data: { alt: fields.alt, caption: fields.caption || null, credit: fields.credit || null },
+      data: {
+        alt: fields.alt,
+        caption: fields.caption || null,
+        credit: fields.credit || null,
+        ...(fields.folderId !== undefined ? { folderId: fields.folderId } : {}),
+      },
     });
     await logActivity(tx, {
       actor: "ADMIN",
@@ -171,6 +197,7 @@ export async function updateMediaMeta(
       entityType: "media",
       entityId: id,
       summary: "Keterangan gambar diubah.",
+      meta: fields.folderId !== undefined ? { folderId: fields.folderId } : {},
       ip: actor.ip,
       userAgent: actor.userAgent,
     });
@@ -232,12 +259,25 @@ export function safeOriginalName(name: string): string {
   return base.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 200) || "gambar";
 }
 
-export async function recentMedia(db: PrismaClient, query = "", limit = 30): Promise<MediaDto[]> {
+export async function recentMedia(
+  db: PrismaClient,
+  query = "",
+  limit = 30,
+  folder?: string | null,
+): Promise<MediaDto[]> {
   const q = query.trim().slice(0, 100);
-  const where: Prisma.MediaWhereInput = q
-    ? // Case-insensitive: the columns use the utf8mb4_unicode_ci collation.
-      { OR: [{ alt: { contains: q } }, { caption: { contains: q } }, { originalName: { contains: q } }] }
-    : {};
+  const conditions: Prisma.MediaWhereInput[] = [];
+  if (q) {
+    // Case-insensitive: the columns use the utf8mb4_unicode_ci collation.
+    conditions.push({ OR: [{ alt: { contains: q } }, { caption: { contains: q } }, { originalName: { contains: q } }] });
+  }
+  const cleanFolder = folder?.trim() ?? "";
+  if (cleanFolder === "none" || cleanFolder === "tanpa-folder") {
+    conditions.push({ folderId: null });
+  } else if (cleanFolder && z.uuid().safeParse(cleanFolder).success) {
+    conditions.push({ folderId: cleanFolder });
+  }
+  const where: Prisma.MediaWhereInput = conditions.length > 0 ? { AND: conditions } : {};
   const rows = await db.media.findMany({ where, orderBy: { createdAt: "desc" }, take: Math.min(Math.max(limit, 1), 60) });
   return rows.map(toMediaDto);
 }

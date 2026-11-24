@@ -11,12 +11,14 @@ import type { MediaDto } from "@/server/media/service";
 export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { title?: string; multiple: boolean; onDone: (chosen: MediaDto[] | null) => void }) {
   const [tab, setTab] = useState<"pilih" | "unggah">("pilih");
   const [items, setItems] = useState<MediaDto[]>([]);
+  const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
+  const [folderFilter, setFolderFilter] = useState("");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [meta, setMeta] = useState({ alt: "", caption: "", credit: "" });
+  const [meta, setMeta] = useState({ alt: "", caption: "", credit: "", folderId: "" });
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -24,10 +26,16 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/admin/media?limit=48&q=${encodeURIComponent(query)}`, { signal: controller.signal });
+        const sp = new URLSearchParams({ limit: "48", q: query });
+        if (folderFilter) sp.set("folder", folderFilter);
+        const res = await fetch(`/api/admin/media?${sp.toString()}`, { signal: controller.signal });
         const body = await res.json();
-        if (res.ok) setItems(body.media as MediaDto[]);
-        else setError(body.error ?? "Gagal memuat gambar.");
+        if (res.ok) {
+          setItems(body.media as MediaDto[]);
+          if (Array.isArray(body.folders)) setFolders(body.folders as { id: string; name: string }[]);
+        } else {
+          setError(body.error ?? "Gagal memuat gambar.");
+        }
       } catch {
         if (!controller.signal.aborted) setError("Gagal memuat gambar.");
       } finally {
@@ -38,7 +46,7 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
       controller.abort();
       clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, folderFilter]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onDone(null);
@@ -68,6 +76,7 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
       form.append("alt", meta.alt);
       form.append("caption", meta.caption);
       form.append("credit", meta.credit);
+      if (meta.folderId) form.append("folderId", meta.folderId);
       const res = await fetch("/api/admin/media", { method: "POST", body: form });
       const body = await res.json();
       if (!res.ok) {
@@ -79,7 +88,7 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
         setItems((current) => [media, ...current.filter((m) => m.id !== media.id)]);
         setSelected((current) => [...current.filter((x) => x !== media.id), media.id]);
         setTab("pilih");
-        setMeta({ alt: "", caption: "", credit: "" });
+        setMeta({ alt: "", caption: "", credit: "", folderId: "" });
         if (fileRef.current) fileRef.current.value = "";
       } else {
         onDone([media]);
@@ -114,11 +123,32 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
 
         {tab === "pilih" ? (
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            <label className="relative block">
-              <span className="sr-only">Cari gambar</span>
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari alt, caption, atau nama berkas" className="admin-input pl-9" />
-            </label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <label className="relative block flex-1">
+                <span className="sr-only">Cari gambar</span>
+                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari alt, caption, atau nama berkas" className="admin-input w-full pl-9" />
+              </label>
+              {folders.length > 0 && (
+                <label className="block sm:w-44">
+                  <span className="sr-only">Filter folder media</span>
+                  <select
+                    aria-label="Filter folder media"
+                    value={folderFilter}
+                    onChange={(e) => setFolderFilter(e.target.value)}
+                    className="admin-input w-full"
+                  >
+                    <option value="">Semua folder</option>
+                    <option value="none">Tanpa folder</option>
+                    {folders.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
             {loading ? (
               <p className="mt-6 flex items-center gap-2 text-sm text-muted"><Loader2 className="size-4 animate-spin" aria-hidden /> Memuat…</p>
             ) : items.length === 0 ? (
@@ -159,6 +189,23 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
               Kredit foto
               <input value={meta.credit} onChange={(e) => setMeta({ ...meta, credit: e.target.value })} maxLength={200} className="admin-input mt-1.5" placeholder="Foto: …" />
             </label>
+            {folders.length > 0 && (
+              <label className="block text-sm font-semibold">
+                Folder (opsional)
+                <select
+                  value={meta.folderId}
+                  onChange={(e) => setMeta({ ...meta, folderId: e.target.value })}
+                  className="admin-input mt-1.5 w-full"
+                >
+                  <option value="">Tanpa folder</option>
+                  {folders.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <p className="text-xs text-muted">Data lokasi dan metadata kamera dihapus otomatis saat diunggah.</p>
           </div>
         )}
