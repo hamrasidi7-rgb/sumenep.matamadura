@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { poolConfig } from "@/server/db/client";
-import { canonicalDatabaseUrl, effectiveHost, onHostinger, parseDatabaseUrl, runtimeDatabaseUrl } from "@/server/db/url";
+import { canonicalDatabaseUrl, cleanPanelValue, effectiveHost, onHostinger, parseDatabaseUrl, runtimeDatabaseUrl } from "@/server/db/url";
 
 // DATABASE_URL as typed into a hosting panel (src/server/db/url.ts).
 
@@ -50,6 +50,13 @@ describe("DATABASE_URL from a hosting panel", () => {
     // DATABASE_URL wins when both are present; an incomplete set is not enough.
     assert.match(runtimeDatabaseUrl({ ...env, DATABASE_URL: "mysql://a:b@localhost/c" }, false), /^mysql:\/\/a:b@127\.0\.0\.1:3306\/c$/);
     assert.throws(() => runtimeDatabaseUrl({ DB_USER: "u", DB_NAME: "d" }, false), /DATABASE_URL belum diisi/);
+  });
+
+  test("paste artifacts are removed: surrounding quotes and invisible characters; default host 127.0.0.1", () => {
+    const env = { DB_USER: '"u1_cms"', DB_PASSWORD: "​'Rahasia#1'﻿", DB_NAME: " u1_sumenep​ " };
+    assert.equal(runtimeDatabaseUrl(env, false), `mysql://u1_cms:${encodeURIComponent("Rahasia#1")}@127.0.0.1:3306/u1_sumenep`);
+    assert.equal(cleanPanelValue("'a'b'"), "a'b");
+    assert.equal(cleanPanelValue("tanpa kutip"), "tanpa kutip");
   });
 
   test("a local socket (DB_SOCKET or ?socket=) replaces TCP for both the app pool and Prisma", () => {

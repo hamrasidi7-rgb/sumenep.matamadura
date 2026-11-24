@@ -129,8 +129,15 @@ function loginHints(error: unknown, parts: DatabaseParts, socketsTried: number):
   const e = error as { sqlMessage?: string; message?: string };
   const seen = /'[^']*'@'([^']*)'.*using password: (YES|NO)/i.exec(e.sqlMessage ?? e.message ?? "");
   if (seen) hints.push(`server melihat koneksi dari ${seen[1]}, password ${seen[2].toUpperCase() === "YES" ? "dikirim" : "TIDAK dikirim"}`);
-  if (parts.password !== parts.password.trim()) hints.push("password diawali atau diakhiri spasi");
+  const pw = parts.password;
+  if (pw !== pw.trim()) hints.push("password diawali atau diakhiri spasi");
+  if (/^[•●*·∙⋅]+$/.test(pw)) hints.push("password berisi tanda samaran (●●● atau ***), bukan password asli");
+  else if (/[^\x20-\x7E]/.test(pw)) hints.push("password memuat karakter di luar huruf/angka/simbol biasa (mungkin ikut tersalin)");
+  if (process.env.ADMIN_PASSWORD && pw === process.env.ADMIN_PASSWORD) hints.push("password database sama dengan ADMIN_PASSWORD (mungkin tertukar)");
+  if (pw === parts.user || pw === parts.database) hints.push("password sama dengan nama user/database");
   if (parts.user !== parts.user.trim()) hints.push("nama user diawali atau diakhiri spasi");
+  if (/[A-Z]/.test(parts.user)) hints.push("nama user memuat huruf besar (user database Hostinger huruf kecil)");
+  if (parts.user === parts.database) hints.push("nama user sama persis dengan nama database: cocokkan dengan kolom MySQL user di hPanel");
   try {
     const account = os.userInfo().username;
     if (/^u\d+$/.test(account)) {

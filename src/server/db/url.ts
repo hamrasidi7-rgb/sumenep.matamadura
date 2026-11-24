@@ -89,16 +89,35 @@ export function configuredDatabaseParts(env: Record<string, string | undefined> 
   return socket && !parts.socket ? { ...parts, socket } : parts;
 }
 
-const first = (env: Record<string, string | undefined>, names: string[]) => names.map((n) => env[n]).find((v) => v !== undefined && v.trim() !== "");
+/** Zero-width characters and BOMs that ride along when a value is copied from a web page. */
+const INVISIBLE = /[​-‍⁠﻿]/g;
+
+/** A value as pasted into a panel: invisible characters dropped, one pair of surrounding quotes removed. */
+export function cleanPanelValue(value: string): string {
+  const visible = value.replace(INVISIBLE, "");
+  const quoted = /^\s*(['"`])(.*)\1\s*$/s.exec(visible);
+  return quoted ? quoted[2] : visible;
+}
+
+export const DB_USER_NAMES = ["DB_USER", "DB_USERNAME", "DATABASE_USER", "DATABASE_USERNAME", "MYSQL_USER"];
+export const DB_PASSWORD_NAMES = ["DB_PASSWORD", "DB_PASS", "DATABASE_PASSWORD", "MYSQL_PASSWORD"];
+export const DB_NAME_NAMES = ["DB_NAME", "DB_DATABASE", "DATABASE_NAME", "MYSQL_DATABASE"];
+
+export const first = (env: Record<string, string | undefined>, names: string[]) =>
+  names.map((n) => env[n]).find((v) => v !== undefined && cleanPanelValue(v).trim() !== "");
 
 /** The separate-variable style of Hostinger's Node.js guides (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME), when DATABASE_URL is absent. */
 export function databasePartsFromEnv(env: Record<string, string | undefined>): DatabaseParts | null {
-  const user = first(env, ["DB_USER", "DB_USERNAME", "DATABASE_USER", "DATABASE_USERNAME", "MYSQL_USER"])?.trim();
-  const password = first(env, ["DB_PASSWORD", "DB_PASS", "DATABASE_PASSWORD", "MYSQL_PASSWORD"]);
-  const database = first(env, ["DB_NAME", "DB_DATABASE", "DATABASE_NAME", "MYSQL_DATABASE"])?.trim();
+  const read = (names: string[]) => {
+    const value = first(env, names);
+    return value === undefined ? undefined : cleanPanelValue(value);
+  };
+  const user = read(DB_USER_NAMES)?.trim();
+  const password = read(DB_PASSWORD_NAMES);
+  const database = read(DB_NAME_NAMES)?.trim();
   if (!user || !password || !database) return null;
-  const [host, portInHost] = (first(env, ["DB_HOST", "DATABASE_HOST", "MYSQL_HOST"])?.trim() || "localhost").split(":");
-  const port = Number(first(env, ["DB_PORT", "DATABASE_PORT", "MYSQL_PORT"])?.trim() || portInHost || 3306);
+  const [host, portInHost] = (read(["DB_HOST", "DATABASE_HOST", "MYSQL_HOST"])?.trim() || "127.0.0.1").split(":");
+  const port = Number(read(["DB_PORT", "DATABASE_PORT", "MYSQL_PORT"])?.trim() || portInHost || 3306);
   return { user, password, host, port: Number.isInteger(port) && port > 0 ? port : 3306, database, ssl: false };
 }
 
