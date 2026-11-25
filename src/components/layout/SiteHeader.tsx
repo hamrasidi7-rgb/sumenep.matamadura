@@ -17,7 +17,7 @@ export function SiteHeader({ sections }: { sections: Section[] }) {
   return (
     <header className="border-b border-[#DEDAD4] bg-[#F5F2ED]">
       <div className="container-site">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center py-3 md:py-4 xl:py-5">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center py-2.5 md:py-3.5 xl:py-4">
           {/* Search icon (left) */}
           <Link
             href="/cari"
@@ -34,13 +34,19 @@ export function SiteHeader({ sections }: { sections: Section[] }) {
             className="group block justify-self-center py-0.5"
             aria-label={`${SITE.name} — Beranda`}
           >
-            <div className="flex flex-col items-center select-none text-center">
-              <span className="font-display text-[1.875rem] font-bold tracking-[0.18em] text-[#171717] uppercase leading-none sm:text-[2.25rem] md:text-[2.75rem] lg:text-[3.25rem] mr-[-0.18em]">
+            <div data-logo-wordmark="" className="flex flex-col items-center text-center select-none">
+              <span
+                data-logo-title=""
+                className="font-display pl-[0.12em] text-[clamp(1.75rem,3.2vw,2.375rem)] leading-[0.95] font-normal tracking-[0.12em] text-[#171717] uppercase md:pl-[0.16em] md:tracking-[0.16em]"
+              >
                 SUMENEP
               </span>
-              <span className="mt-1 inline-flex items-baseline justify-center font-[family-name:var(--font-wordmark)] text-[1.4375rem] font-medium lowercase leading-[0.82] tracking-[0.01em] sm:mt-1.5 sm:text-[1.625rem] md:text-[1.875rem] lg:text-[2.125rem]">
+              <span
+                data-logo-subtext=""
+                className="mt-0.5 inline-flex items-baseline justify-center font-sans text-[clamp(0.96875rem,1.6vw,1.25rem)] leading-none font-semibold tracking-[-0.01em] lowercase md:mt-1"
+              >
                 <span className="text-[#171717]">mata</span>
-                <span className="text-[#CC0000]">madura</span>
+                <span className="text-[#A6192E]">madura</span>
               </span>
             </div>
           </Link>
