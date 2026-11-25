@@ -37,7 +37,7 @@ export function SiteHeader({ sections }: { sections: Section[] }) {
             <div data-logo-wordmark="" className="flex flex-col items-center text-center select-none">
               <span
                 data-logo-title=""
-                className="font-display pl-[0.12em] text-[clamp(1.75rem,3.2vw,2.375rem)] leading-[0.95] font-normal tracking-[0.12em] text-[#171717] uppercase md:pl-[0.16em] md:tracking-[0.16em]"
+                className="font-display pl-[0.03em] text-[clamp(1.78125rem,3.3vw,2.4375rem)] leading-[0.95] font-normal tracking-[0.03em] text-[#171717] uppercase md:pl-[0.04em] md:tracking-[0.04em]"
               >
                 SUMENEP
               </span>

@@ -56,11 +56,11 @@ export function ArticleHeader({
             {article.section.name}
           </Link>
         )}
-        <h1 className="font-serif mt-2 text-left text-[1.625rem] leading-[1.2] font-semibold tracking-[-0.012em] text-[#171717] md:text-[1.9375rem] md:leading-[1.2]">
+        <h1 className="article-title mt-2 text-left">
           {article.title}
         </h1>
         {article.standfirst && (
-          <p className="font-serif mt-2.5 text-left text-[1.015625rem] leading-[1.45] font-normal text-[#333333] md:mt-3 md:text-[1.21875rem] md:leading-[1.45]">
+          <p className="article-lead text-left">
             {article.standfirst}
           </p>
         )}

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Lora, Newsreader, Teko } from "next/font/google";
+import { Inter, Lora, Newsreader, Source_Serif_4, Teko } from "next/font/google";
 
 import { ChatorWidget } from "@/components/chator/ChatorWidget";
 import { SiteFooter } from "@/components/layout/SiteFooter";
@@ -20,6 +20,14 @@ const lora = Lora({
   subsets: ["latin"],
   style: ["normal", "italic"],
   variable: "--font-lora",
+  display: "swap",
+});
+
+const sourceSerif4 = Source_Serif_4({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  style: ["normal"],
+  variable: "--font-source-serif-4",
   display: "swap",
 });
 
@@ -62,7 +70,7 @@ export const viewport: Viewport = {
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const sections = await getSections();
   return (
-    <html lang="id" data-scroll-behavior="smooth" className={`${newsreader.variable} ${lora.variable} ${inter.variable} ${teko.variable}`}>
+    <html lang="id" data-scroll-behavior="smooth" className={`${newsreader.variable} ${lora.variable} ${sourceSerif4.variable} ${inter.variable} ${teko.variable}`}>
       <body>
         <a
           href="#konten"

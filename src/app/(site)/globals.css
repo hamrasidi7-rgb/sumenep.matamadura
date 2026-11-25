@@ -103,6 +103,32 @@
   .article-link {
     @apply text-ink underline decoration-brand/60 decoration-[0.08em] underline-offset-[0.18em] transition-colors hover:text-brand-deep hover:decoration-brand;
   }
+  .article-title {
+    font-family: var(--font-source-serif-4), "Source Serif 4", Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    font-size: 28px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: #1a1a1a;
+    text-wrap: balance;
+  }
+  .article-lead {
+    font-family: var(--font-source-serif-4), "Source Serif 4", Georgia, "Times New Roman", serif;
+    font-weight: 400;
+    font-style: normal;
+    font-size: 17px;
+    line-height: 1.5;
+    color: #333333;
+    margin-top: 14px;
+  }
+  @media (min-width: 48rem) {
+    .article-title {
+      font-size: 42px;
+    }
+    .article-lead {
+      font-size: 21px;
+    }
+  }
   .tap {
     @apply inline-flex min-h-11 min-w-11 items-center justify-center;
   }

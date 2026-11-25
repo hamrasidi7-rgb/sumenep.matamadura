@@ -440,9 +440,9 @@ describe("Editorial Block Editor & Nieman Typography (end-to-end)", () => {
       };
     });
 
-    assert.match(metricsDesktop.h1Font, /Lora/i);
-    assert.equal(metricsDesktop.h1Weight, 600);
-    assert.ok(metricsDesktop.h1Size >= 28 && metricsDesktop.h1Size <= 42, `h1Size=${metricsDesktop.h1Size}`);
+    assert.match(metricsDesktop.h1Font, /Source Serif 4/i);
+    assert.equal(metricsDesktop.h1Weight, 700);
+    assert.ok(metricsDesktop.h1Size >= 40 && metricsDesktop.h1Size <= 44, `h1Size=${metricsDesktop.h1Size}`);
     assert.match(metricsDesktop.bodyFont, /Lora/i);
     assert.equal(metricsDesktop.bodyWeight, 500);
     assert.ok(metricsDesktop.bodySize >= 18 && metricsDesktop.bodySize <= 20.5, `bodySize=${metricsDesktop.bodySize}`);
