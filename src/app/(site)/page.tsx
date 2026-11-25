@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
+
 import { EditorialNote } from "@/components/home/EditorialNote";
 import { FeaturedArticles } from "@/components/home/FeaturedArticles";
 import { HeroArticle } from "@/components/home/HeroArticle";
 import { LatestArticles } from "@/components/home/LatestArticles";
 import { getHomepage, getSections } from "@/lib/content";
 import { SITE } from "@/lib/site";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export default async function HomePage() {
   const [home, rubrics] = await Promise.all([getHomepage(), getSections("rubrik")]);
