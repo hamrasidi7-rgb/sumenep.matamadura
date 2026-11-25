@@ -16,8 +16,6 @@ export function ArticleMetadata({
 }) {
   const muted = tone === "inverse" ? "text-white/75" : "text-[#666666]";
   const strong = tone === "inverse" ? "text-white" : "text-[#222222]";
-  const updated =
-    article.updatedAt && Date.parse(article.updatedAt) - Date.parse(article.publishedAt) > 60 * 60 * 1000 ? article.updatedAt : null;
   return (
     <div className={`flex items-center gap-2.5 ${align === "center" ? "justify-center text-left" : ""}`}>
       <AuthorAvatar author={article.author} size={34} />
@@ -34,11 +32,6 @@ export function ArticleMetadata({
             ·
           </span>
           <span className="whitespace-nowrap">{readingLabel(article.readingMinutes)}</span>
-          {updated && (
-            <span className="block">
-              Diperbarui <time dateTime={updated}>{formatDateLong(updated)}</time>
-            </span>
-          )}
         </p>
       </div>
     </div>
