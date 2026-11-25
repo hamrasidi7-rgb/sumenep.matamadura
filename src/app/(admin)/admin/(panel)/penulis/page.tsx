@@ -14,7 +14,7 @@ export default async function AuthorsPage() {
   const { authors, avatarMedia } = await listAuthorsForAdmin(getDb());
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 md:px-6">
+    <main className="mx-auto max-w-7xl px-4 py-8 md:px-6">
       <div className="min-w-0">
         <h1 className="font-display text-[1.75rem] leading-tight font-semibold md:text-[2rem]">Penulis</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">

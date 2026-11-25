@@ -114,8 +114,8 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
     <div className="space-y-6">
       {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.15fr_1fr] lg:items-start">
-        <section className="admin-card" aria-labelledby="daftar-penulis-heading">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
+        <section className="admin-card min-w-0" aria-labelledby="daftar-penulis-heading">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 id="daftar-penulis-heading" className="font-display text-xl font-semibold">
               Daftar Penulis ({authors.length})
@@ -132,8 +132,8 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
           ) : (
             <ul className="mt-4 divide-y divide-line">
               {authors.map((a) => (
-                <li key={a.id} className="flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex min-w-0 items-center gap-3">
+                <li key={a.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 py-4">
+                  <div className="flex min-w-0 max-w-full flex-[1_1_320px] items-start gap-3.5">
                     {a.avatarSrc ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={a.avatarSrc} alt="" className="size-12 shrink-0 rounded-full border border-line bg-warm object-cover" loading="lazy" />
@@ -142,51 +142,56 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
                         {a.name.slice(0, 1).toUpperCase()}
                       </span>
                     )}
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-ink break-words">{a.name}</p>
-                        <span className={`admin-badge ${a.isActive ? "bg-emerald-100 text-emerald-900" : "bg-slate-200 text-slate-800"}`}>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <p className="font-semibold leading-snug text-ink break-words">{a.name}</p>
+                        <span className={`admin-badge shrink-0 ${a.isActive ? "bg-emerald-100 text-emerald-900" : "bg-slate-200 text-slate-800"}`}>
                           {a.isActive ? "Aktif" : "Nonaktif"}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs text-muted break-words">
-                        {[a.role || "Tanpa peran", `/penulis/${a.slug}`, `${a.articleCount} artikel`].join(" · ")}
+                      <p className="mt-1 text-xs leading-relaxed text-muted break-words">
+                        {a.role || "Tanpa peran"}
                       </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
+                        <span className="font-mono text-[11px] break-all">/penulis/{a.slug}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="whitespace-nowrap tabular-nums">{a.articleCount} artikel</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <div className="flex max-w-full flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
                     {(a.isActive || a.articleCount > 0) && (
                       <a
                         href={`/penulis/${a.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex min-h-8 items-center gap-1 rounded-md border border-line bg-paper px-2.5 text-xs font-semibold text-ink hover:border-ink/40 hover:bg-warm"
+                        className="inline-flex min-h-8 items-center gap-1 rounded-md border border-line bg-paper px-2.5 text-xs font-semibold whitespace-nowrap text-ink hover:border-ink/40 hover:bg-warm"
                       >
-                        <ExternalLink className="size-3" aria-hidden="true" /> Profil
+                        <ExternalLink className="size-3 shrink-0" aria-hidden="true" /> Profil
                       </a>
                     )}
                     <button
                       type="button"
                       disabled={pending}
                       onClick={() => loadForm(a)}
-                      className="inline-flex min-h-8 items-center gap-1 rounded-md border border-line bg-paper px-2.5 text-xs font-semibold text-ink hover:border-ink/40 hover:bg-warm"
+                      className="inline-flex min-h-8 items-center gap-1 rounded-md border border-line bg-paper px-2.5 text-xs font-semibold whitespace-nowrap text-ink hover:border-ink/40 hover:bg-warm"
                     >
-                      <Pencil className="size-3" aria-hidden="true" /> Edit
+                      <Pencil className="size-3 shrink-0" aria-hidden="true" /> Edit
                     </button>
                     <button
                       type="button"
                       disabled={pending}
                       onClick={() => handleToggle(a)}
-                      className="inline-flex min-h-8 items-center gap-1 rounded-md border border-line bg-paper px-2.5 text-xs font-semibold text-ink hover:border-ink/40 hover:bg-warm"
+                      className="inline-flex min-h-8 items-center gap-1 rounded-md border border-line bg-paper px-2.5 text-xs font-semibold whitespace-nowrap text-ink hover:border-ink/40 hover:bg-warm"
                     >
                       {a.isActive ? (
                         <>
-                          <UserMinus className="size-3" aria-hidden="true" /> Nonaktifkan
+                          <UserMinus className="size-3 shrink-0" aria-hidden="true" /> Nonaktifkan
                         </>
                       ) : (
                         <>
-                          <UserCheck className="size-3" aria-hidden="true" /> Aktifkan
+                          <UserCheck className="size-3 shrink-0" aria-hidden="true" /> Aktifkan
                         </>
                       )}
                     </button>
@@ -195,9 +200,9 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
                         type="button"
                         disabled={pending}
                         onClick={() => handleDelete(a)}
-                        className="inline-flex min-h-8 items-center gap-1 rounded-md border border-brand/30 bg-blush/60 px-2.5 text-xs font-semibold text-brand-deep hover:bg-blush"
+                        className="inline-flex min-h-8 items-center gap-1 rounded-md border border-brand/30 bg-blush/60 px-2.5 text-xs font-semibold whitespace-nowrap text-brand-deep hover:bg-blush"
                       >
-                        <Trash2 className="size-3" aria-hidden="true" /> Hapus
+                        <Trash2 className="size-3 shrink-0" aria-hidden="true" /> Hapus
                       </button>
                     )}
                   </div>
@@ -207,22 +212,22 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
           )}
         </section>
 
-        <section className="admin-card" aria-labelledby="form-penulis-heading">
-          <h2 id="form-penulis-heading" className="font-display text-xl font-semibold">
+        <section className="admin-card min-w-0" aria-labelledby="form-penulis-heading">
+          <h2 id="form-penulis-heading" className="font-display text-xl font-semibold break-words">
             {editing ? `Ubah penulis: ${editing.name}` : "Tambah penulis baru"}
           </h2>
 
-          <form onSubmit={submitForm} className="mt-4 space-y-4">
+          <form onSubmit={submitForm} className="mt-4 min-w-0 space-y-4">
             <div className="flex flex-wrap items-center gap-4">
               {previewSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewSrc} alt="" className="size-20 shrink-0 rounded-full border border-line bg-warm object-cover" />
+                <img src={previewSrc} alt="" className="size-16 shrink-0 rounded-full border border-line bg-warm object-cover sm:size-20" />
               ) : (
-                <div className="flex size-20 shrink-0 items-center justify-center rounded-full border border-dashed border-line bg-warm text-muted">
+                <div className="flex size-16 shrink-0 items-center justify-center rounded-full border border-dashed border-line bg-warm text-muted sm:size-20">
                   <ImageIcon className="size-5" aria-hidden="true" />
                 </div>
               )}
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                 <button type="button" onClick={pickAvatar} disabled={pending} className="admin-button-quiet min-h-9 px-3 text-xs">
                   {previewSrc ? "Ganti foto" : "Pilih / unggah foto"}
                 </button>
@@ -239,7 +244,7 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
               </div>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label htmlFor="author-name" className="admin-label">Nama lengkap</label>
               <input
                 id="author-name"
@@ -250,12 +255,14 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="mis. Ahmad Fauzi"
                 disabled={pending}
-                className="admin-input mt-1.5"
+                className="admin-input mt-1.5 box-border w-full min-w-0"
               />
             </div>
 
-            <div>
-              <label htmlFor="author-slug" className="admin-label">Slug URL (`/penulis/[slug]`)</label>
+            <div className="min-w-0">
+              <label htmlFor="author-slug" className="admin-label">
+                Slug URL (<code className="font-mono text-xs font-normal">/penulis/[slug]</code>)
+              </label>
               <input
                 id="author-slug"
                 type="text"
@@ -267,12 +274,12 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
                 }}
                 placeholder="Otomatis dari nama jika dikosongkan"
                 disabled={pending}
-                className="admin-input mt-1.5 font-mono text-sm"
+                className="admin-input mt-1.5 box-border w-full min-w-0 font-mono text-sm"
               />
               <p className="admin-help">Huruf kecil, angka, dan tanda hubung (maks. 80 karakter).</p>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label htmlFor="author-role" className="admin-label">Jabatan / Profesi</label>
               <input
                 id="author-role"
@@ -282,11 +289,11 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
                 onChange={(e) => setRole(e.target.value)}
                 placeholder="mis. Tim Redaksi, Wartawan Kepulauan"
                 disabled={pending}
-                className="admin-input mt-1.5"
+                className="admin-input mt-1.5 box-border w-full min-w-0"
               />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label htmlFor="author-bio" className="admin-label">Bio singkat (opsional)</label>
               <textarea
                 id="author-bio"
@@ -296,19 +303,20 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="Ringkasan profil penulis yang tampil di halaman artikel & penulis."
                 disabled={pending}
-                className="admin-input mt-1.5 py-2"
+                className="admin-input mt-1.5 box-border w-full min-w-0 py-2"
               />
               <WordCounter text={bio} recommendedMin={20} id="author-bio-counter" />
             </div>
 
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-start gap-2.5 text-sm leading-snug text-ink">
               <input
                 type="checkbox"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
                 disabled={pending}
+                className="mt-0.5 shrink-0"
               />
-              <span>Aktif di daftar pilihan penulis editor artikel</span>
+              <span className="min-w-0">Aktif di daftar pilihan penulis editor artikel</span>
             </label>
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
