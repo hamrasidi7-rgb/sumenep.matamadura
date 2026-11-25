@@ -39,6 +39,7 @@
   html {
     -webkit-text-size-adjust: 100%;
     text-rendering: optimizeLegibility;
+    scroll-padding-top: 6.5rem;
   }
   /* Smooth in-page jumps (table of contents). Next.js restores instant scroll
      on route changes because <html> carries data-scroll-behavior="smooth". */

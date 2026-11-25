@@ -15,7 +15,7 @@ import { MobileNavigation } from "./MobileNavigation";
  */
 export function SiteHeader({ sections }: { sections: Section[] }) {
   return (
-    <header className="border-b border-[#DEDAD4] bg-[#F5F2ED]">
+    <header className="sticky top-0 z-40 border-b border-[#DEDAD4] bg-[#F5F2ED]">
       <div className="container-site">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center py-2.5 md:py-3.5 xl:py-4">
           {/* Search icon (left) */}
