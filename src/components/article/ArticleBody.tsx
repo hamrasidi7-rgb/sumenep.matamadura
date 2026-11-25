@@ -55,7 +55,7 @@ export function ArticleBody({
   return (
     <div
       data-article-body=""
-      className="flow-root font-serif text-[1.0625rem] leading-[1.6] text-[#252525] md:text-[1.1875rem] md:leading-[1.65] xl:text-[1.25rem]"
+      className="flow-root font-serif text-[1.125rem] leading-[1.75] font-[440] text-[#292929] md:text-[1.1875rem] md:leading-[1.75]"
     >
       {blocks.map((b, i) => {
         const slot = i === firstHeading && beforeFirstHeading ? beforeFirstHeading : null;
