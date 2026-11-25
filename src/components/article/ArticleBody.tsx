@@ -55,7 +55,7 @@ export function ArticleBody({
   return (
     <div
       data-article-body=""
-      className="flow-root font-serif text-[1.125rem] leading-[1.65] font-normal text-[#222222] md:text-[1.1875rem] md:leading-[1.7]"
+      className="flow-root font-serif text-[1.125rem] leading-[1.65] font-medium text-[#242424] md:text-[1.1875rem] md:leading-[1.7]"
     >
       {blocks.map((b, i) => {
         const slot = i === firstHeading && beforeFirstHeading ? beforeFirstHeading : null;
@@ -66,7 +66,7 @@ export function ArticleBody({
               return (
                 <p
                   data-drop-cap={showDropCap ? "true" : undefined}
-                  className={`mb-6 ${
+                  className={`mb-6 font-medium text-[#242424] ${
                     showDropCap
                       ? "clear-left first-letter:float-left first-letter:mt-1 first-letter:mr-3 first-letter:font-serif first-letter:text-[3.75em] first-letter:leading-[0.82] first-letter:font-bold first-letter:text-[#A61B2B]"
                       : ""

@@ -426,6 +426,7 @@ describe("Editorial Block Editor & Nieman Typography (end-to-end)", () => {
         h1Size: parseFloat(getComputedStyle(h1).fontSize),
         h1Color: getComputedStyle(h1).color,
         bodyFont: getComputedStyle(bodyWrap).fontFamily,
+        bodyWeight: Number(getComputedStyle(bodyWrap).fontWeight),
         bodySize: parseFloat(getComputedStyle(bodyWrap).fontSize),
         bodyLine: parseFloat(getComputedStyle(bodyWrap).lineHeight),
         bodyColor: getComputedStyle(bodyWrap).color,
@@ -443,8 +444,9 @@ describe("Editorial Block Editor & Nieman Typography (end-to-end)", () => {
     assert.ok(metricsDesktop.h1Weight >= 700);
     assert.ok(metricsDesktop.h1Size >= 42 && metricsDesktop.h1Size <= 56, `h1Size=${metricsDesktop.h1Size}`);
     assert.match(metricsDesktop.bodyFont, /Lora/i);
+    assert.equal(metricsDesktop.bodyWeight, 500);
     assert.ok(metricsDesktop.bodySize >= 19 && metricsDesktop.bodySize <= 20.5, `bodySize=${metricsDesktop.bodySize}`);
-    assert.equal(metricsDesktop.bodyColor, "rgb(34, 34, 34)"); // #222222
+    assert.equal(metricsDesktop.bodyColor, "rgb(36, 36, 36)"); // #242424
     assert.ok(metricsDesktop.bodyLine / metricsDesktop.bodySize >= 1.6 && metricsDesktop.bodyLine / metricsDesktop.bodySize <= 1.75);
     assert.match(metricsDesktop.h2Font, /Lora/i);
     assert.ok(metricsDesktop.h2Weight >= 700);
