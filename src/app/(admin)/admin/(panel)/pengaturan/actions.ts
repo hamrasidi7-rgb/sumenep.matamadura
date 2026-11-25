@@ -21,7 +21,10 @@ async function actor() {
 
 function revalidateSettingsConsumers() {
   refreshPublicArticles();
+  revalidatePath("/");
+  revalidatePath("/admin/hero");
   revalidatePath("/admin/pengaturan");
+  revalidatePath("/admin/artikel");
   revalidatePath("/admin");
 }
 

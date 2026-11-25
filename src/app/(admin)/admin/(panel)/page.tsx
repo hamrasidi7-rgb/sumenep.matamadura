@@ -7,6 +7,7 @@ import {
   PenLine,
   Settings,
   ShieldCheck,
+  Star,
   TrendingUp,
 } from "lucide-react";
 import type { Metadata } from "next";
@@ -34,6 +35,12 @@ const QUICK_LINKS = [
     label: "Semua artikel",
     description: "Cari dan saring berita",
     icon: Newspaper,
+  },
+  {
+    href: "/admin/hero",
+    label: "Hero Utama",
+    description: "Pilih konten unggulan & riwayat",
+    icon: Star,
   },
   {
     href: "/admin/artikel?status=draf",

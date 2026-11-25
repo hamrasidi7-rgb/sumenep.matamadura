@@ -169,6 +169,7 @@ export function resolveEntityHref(
   if (entityType === "author") return "/admin/penulis";
   if (entityType === "section") return "/admin/seksi";
   if (entityType === "media" || entityType === "media_folder") return "/admin/media";
+  if (action.startsWith("homepage.hero.")) return "/admin/hero";
   if (entityType === "site_settings" || entityType === "homepage_settings") return "/admin/pengaturan";
   if (entityType === "admin_session" || entityType === "admin_user") return "/admin/akun";
   return null;

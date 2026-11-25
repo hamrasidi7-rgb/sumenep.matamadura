@@ -1,4 +1,4 @@
-import { CalendarClock, ExternalLink, FilePlus2 } from "lucide-react";
+import { CalendarClock, ExternalLink, FilePlus2, Star } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -49,7 +49,11 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   const db = getDb();
 
   // Jalankan berurutan agar total koneksi serentak tetap <= 4 pada pool MariaDB limit 5.
-  const options = await editorOptions(db, { includeUsedAuthors: true });
+  const [options, homepageRow] = await Promise.all([
+    editorOptions(db, { includeUsedAuthors: true }),
+    db.homepageSettings.findUnique({ where: { id: 1 }, select: { heroArticleId: true } }),
+  ]);
+  const activeHeroId = homepageRow?.heroArticleId ?? null;
   const { items, total, page, pages, perPage, counts } = await listArticles(db, {
     q: urlState.q,
     state: urlState.status,
@@ -181,6 +185,14 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
                     </Link>
                     <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted">
                       <StateBadge state={a.state} />
+                      {activeHeroId === a.id && (
+                        <Link
+                          href="/admin/hero"
+                          className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand hover:bg-brand/15"
+                        >
+                          <Star className="size-3 fill-current" aria-hidden="true" /> Hero Utama
+                        </Link>
+                      )}
                       <span>{[a.kanal, a.rubrik].filter(Boolean).join(" · ") || "Tanpa kanal/rubrik"}</span>
                       <span>{a.author}</span>
                       {a.state === "terjadwal" && a.publishedAt ? (

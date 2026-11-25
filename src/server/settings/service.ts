@@ -3,6 +3,12 @@ import { z } from "zod";
 
 import { IS_PRODUCTION_SITE, SITE } from "@/lib/site";
 import { logActivity } from "@/server/activity-log";
+import {
+  describeIneligibleReason,
+  eligibleHeroWhere,
+  recordHeroChangeActivity,
+  toHeroSnapshot,
+} from "@/server/homepage/hero";
 import { toMediaDto, type MediaDto } from "@/server/media/service";
 
 // Layanan Pengaturan Situs & Kurasi Beranda (/admin/pengaturan) — Fase 9.
@@ -147,6 +153,7 @@ export interface CmsSettingsData {
     title: string;
     slug: string;
     kanalName: string;
+    sectionLabel: string;
   }[];
   rubrikOptions: {
     id: string;
@@ -157,7 +164,7 @@ export interface CmsSettingsData {
   mediaMap: Record<string, MediaDto>;
 }
 
-export async function getCmsSettingsData(db: PrismaClient): Promise<CmsSettingsData> {
+export async function getCmsSettingsData(db: PrismaClient, now = new Date()): Promise<CmsSettingsData> {
   // Wave 1 (4 kueri)
   const [siteRow, homepageRow, featuredRows, rubricRows] = await Promise.all([
     db.siteSettings.findUnique({
@@ -172,7 +179,7 @@ export async function getCmsSettingsData(db: PrismaClient): Promise<CmsSettingsD
   // Wave 2 (2 kueri)
   const [articles, rubrikOptions] = await Promise.all([
     db.article.findMany({
-      where: { deletedAt: null, status: "PUBLISHED" },
+      where: eligibleHeroWhere(now),
       orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
       take: 80,
       select: {
@@ -180,6 +187,7 @@ export async function getCmsSettingsData(db: PrismaClient): Promise<CmsSettingsD
         title: true,
         slug: true,
         kanal: { select: { name: true } },
+        rubrik: { select: { name: true } },
       },
     }),
     db.section.findMany({
@@ -222,6 +230,7 @@ export async function getCmsSettingsData(db: PrismaClient): Promise<CmsSettingsD
       title: a.title,
       slug: a.slug,
       kanalName: a.kanal?.name ?? "Tanpa kanal",
+      sectionLabel: a.rubrik?.name ?? a.kanal?.name ?? "Umum",
     })),
     rubrikOptions,
     mediaMap,
@@ -292,6 +301,7 @@ export async function updateHomepageSettings(
   db: PrismaClient,
   rawInput: HomepageSettingsFormInput,
   actor: { adminId: number; ip?: string | null; userAgent?: string | null },
+  now = new Date(),
 ): Promise<SettingsMutationResult> {
   const parsed = homepageSettingsInputSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -305,17 +315,50 @@ export async function updateHomepageSettings(
   ];
   const uniqueArticleIds = [...new Set(neededArticleIds)];
 
+  let nextHeroRow: {
+    id: string;
+    title: string;
+    slug: string;
+    template: "STANDARD" | "FEATURE" | "SPOTLIGHT";
+    kanal: { name: string } | null;
+    rubrik: { name: string } | null;
+  } | null = null;
+
   if (uniqueArticleIds.length > 0) {
     const validArticles = await db.article.findMany({
-      where: { id: { in: uniqueArticleIds }, deletedAt: null, status: "PUBLISHED" },
-      select: { id: true },
+      where: { id: { in: uniqueArticleIds } },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        template: true,
+        status: true,
+        publishedAt: true,
+        deletedAt: true,
+        hideFromHomepage: true,
+        kanal: { select: { name: true } },
+        rubrik: { select: { name: true } },
+      },
     });
-    const validSet = new Set(validArticles.map((a) => a.id));
-    if (input.heroArticleId && !validSet.has(input.heroArticleId)) {
-      return { ok: false, error: "Artikel berita utama harus berstatus terbit dan tidak berada di tempat sampah." };
+    const byId = new Map(validArticles.map((a) => [a.id, a]));
+    if (input.heroArticleId) {
+      const heroCandidate = byId.get(input.heroArticleId) ?? null;
+      const heroReason = describeIneligibleReason(heroCandidate, now);
+      if (heroReason) {
+        return { ok: false, error: `Berita utama tidak valid: ${heroReason}` };
+      }
+      if (heroCandidate) nextHeroRow = heroCandidate;
     }
-    if (input.featuredArticleIds.some((id) => !validSet.has(id))) {
-      return { ok: false, error: "Semua artikel Tulisan Pilihan harus berstatus terbit." };
+    if (
+      input.featuredArticleIds.some((id) => {
+        const candidate = byId.get(id) ?? null;
+        return describeIneligibleReason(candidate, now) !== null;
+      })
+    ) {
+      return {
+        ok: false,
+        error: "Semua artikel Tulisan Pilihan harus berstatus terbit dan tidak disembunyikan dari beranda.",
+      };
     }
   }
 
@@ -332,6 +375,24 @@ export async function updateHomepageSettings(
   }
 
   await db.$transaction(async (tx) => {
+    const prevSettings = await tx.homepageSettings.findUnique({
+      where: { id: 1 },
+      select: {
+        heroArticleId: true,
+        heroArticle: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            template: true,
+            kanal: { select: { name: true } },
+            rubrik: { select: { name: true } },
+          },
+        },
+      },
+    });
+    const heroChanged = (prevSettings?.heroArticleId ?? null) !== input.heroArticleId;
+
     await tx.homepageSettings.upsert({
       where: { id: 1 },
       create: {
@@ -360,6 +421,15 @@ export async function updateHomepageSettings(
           position,
           itemCount: r.itemCount,
         })),
+      });
+    }
+
+    if (heroChanged) {
+      await recordHeroChangeActivity(tx, {
+        previous: prevSettings?.heroArticle ? toHeroSnapshot(prevSettings.heroArticle) : null,
+        next: nextHeroRow ? toHeroSnapshot(nextHeroRow) : null,
+        source: "admin-settings",
+        actor,
       });
     }
 

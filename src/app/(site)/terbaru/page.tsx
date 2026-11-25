@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { ArchiveView } from "@/components/article/ArchiveView";
 import { listArticles } from "@/lib/content";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Artikel Terbaru",
   description: "Tulisan terbaru dari SUMENEP – Mata Madura.",

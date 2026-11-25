@@ -1,10 +1,13 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
+import { ArticleMeta } from "@/components/ui/ArticleMeta";
+import { MediaImage } from "@/components/ui/MediaImage";
 import type { EditorialNote as Note } from "@/content/types";
+import type { ArticleView } from "@/lib/content";
 
-/** Catatan Sumenep — the rubric that sets SUMENEP apart. A slim banner. */
-export function EditorialNote({ note }: { note: Note }) {
+/** Catatan Sumenep — the rubric that sets SUMENEP apart. A slim banner + optional rubric items. */
+export function EditorialNote({ note, articles = [] }: { note: Note; articles?: ArticleView[] }) {
   return (
     <section aria-labelledby="catatan-sumenep" className="container-site mt-8 md:mt-14 xl:mt-16">
       <Link
@@ -38,6 +41,41 @@ export function EditorialNote({ note }: { note: Note }) {
           strokeWidth={2}
         />
       </Link>
+
+      {articles.length > 0 && (
+        <ul className="mt-6 grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+          {articles.map((a) => {
+            const href = `/artikel/${a.slug}`;
+            return (
+              <li key={a.slug} className="border-b border-border pb-6 last:border-0">
+                <Link href={href} className="block" aria-hidden tabIndex={-1}>
+                  <MediaImage
+                    media={a.hero}
+                    ratio="16/10"
+                    className="object-cover w-full h-full"
+                  />
+                </Link>
+                <div className="mt-3">
+                  <h3 className="font-display mt-1 text-[clamp(1.125rem,4vw,1.5rem)] leading-[1.05] font-bold tracking-[-0.018em] text-[var(--color-text-primary)]">
+                    <Link href={href} className="hover:text-brand-deep">
+                      {a.title}
+                    </Link>
+                  </h3>
+                  <p className="mt-2 text-[var(--color-text-secondary)] font-sans text-base leading-[1.5]">
+                    {a.standfirst}
+                  </p>
+                  <ArticleMeta
+                    publishedAt={a.publishedAt}
+                    readingMinutes={a.readingMinutes}
+                    compact
+                    className="mt-2"
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }

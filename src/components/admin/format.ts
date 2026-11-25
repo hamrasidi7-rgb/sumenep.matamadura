@@ -98,6 +98,8 @@ const ACTIONS: Record<string, string> = {
   "section.delete": "Kanal/rubrik dihapus",
   "site.settings_update": "Pengaturan situs diperbarui",
   "homepage.update": "Susunan beranda diperbarui",
+  "homepage.hero.set": "Hero Utama ditetapkan",
+  "homepage.hero.clear": "Hero Utama dikembalikan otomatis",
 };
 
 const LOGIN_REASONS: Record<string, string> = {

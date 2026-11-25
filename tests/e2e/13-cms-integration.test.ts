@@ -15,6 +15,7 @@ const CMS_ROUTES = [
   { path: "/admin/statistik", heading: "Statistik Redaksi" },
   { path: "/admin/artikel", heading: "Artikel" },
   { path: "/admin/artikel/baru", heading: null },
+  { path: "/admin/hero", heading: "Hero Utama" },
   { path: "/admin/media", heading: "Media Library" },
   { path: "/admin/seksi", heading: "Kanal & Rubrik" },
   { path: "/admin/penulis", heading: "Penulis" },
@@ -46,6 +47,7 @@ describe("CMS full integration & responsive audit (Fase 10)", () => {
     // Verifikasi Dashboard memiliki tautan silang lengkap ke semua modul baru
     for (const href of [
       "/admin/statistik",
+      "/admin/hero",
       "/admin/media",
       "/admin/seksi",
       "/admin/penulis",

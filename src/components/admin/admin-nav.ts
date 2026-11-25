@@ -10,6 +10,7 @@ export type AdminNavIcon =
   | "dashboard"
   | "newspaper"
   | "pen"
+  | "hero"
   | "trending"
   | "media"
   | "sections"
@@ -55,6 +56,7 @@ export const ADMIN_NAV: readonly AdminNavEntry[] = [
       },
     ],
   },
+  { href: "/admin/hero", label: "Hero Utama", icon: "hero" },
   { href: "/admin/media", label: "Media Library", icon: "media" },
   { href: "/admin/seksi", label: "Kanal & Rubrik", icon: "sections" },
   { href: "/admin/penulis", label: "Penulis", icon: "authors" },

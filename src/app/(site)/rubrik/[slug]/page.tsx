@@ -6,6 +6,8 @@ import { getSection, getSections, listArticles } from "@/lib/content";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ halaman?: string }> };
 
+export const dynamic = "force-dynamic";
+
 export async function generateStaticParams() {
   return (await getSections("rubrik")).map((s) => ({ slug: s.slug }));
 }

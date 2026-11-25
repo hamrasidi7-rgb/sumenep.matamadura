@@ -12,6 +12,14 @@ import {
   cachedPublicAuthors,
 } from "@/server/authors/public";
 import { configuredDatabaseParts } from "@/server/db/url";
+import {
+  cachedPublicArticleList,
+  cachedPublicFeaturedSlugs,
+  cachedPublicHomepage,
+  cachedPublicSection,
+  cachedPublicSections,
+} from "@/server/homepage/public";
+import type { HomepageRubricBand } from "@/server/homepage/slots";
 
 // Content adapter. Today it reads the demo seed; in Tahap 5 each function is
 // re-implemented on top of the Payload Local API with the same signatures.
@@ -68,10 +76,26 @@ function paginate<T>(all: T[], page: number, perPage: number): Paginated<T> {
 }
 
 export async function getSections(kind?: SectionKind): Promise<Section[]> {
+  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
+    try {
+      const fromCms = await cachedPublicSections(kind);
+      if (fromCms.length > 0) return fromCms;
+    } catch {
+      // Jatuh kembali ke daftar seksi bawaan bila database belum siap (mis. saat build).
+    }
+  }
   return kind ? SECTIONS.filter((s) => s.kind === kind) : SECTIONS;
 }
 
 export async function getSection(kind: SectionKind, slug: string): Promise<Section | null> {
+  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
+    try {
+      const fromCms = await cachedPublicSection(kind, slug);
+      if (fromCms) return fromCms;
+    } catch {
+      // Fallback ke seksi bawaan.
+    }
+  }
   return SECTIONS.find((s) => s.kind === kind && s.slug === slug) ?? null;
 }
 
@@ -110,12 +134,12 @@ export async function listAuthorArticles(slug: string, page = 1): Promise<Pagina
   const seenSlugs = new Set(cmsItems.map((item) => item.slug));
 
   const seedItems: ArticleView[] = [];
-  const firstSeedPage = await listArticles({ author: slug, page: 1 });
+  const firstSeedPage = listSeedArticles({ author: slug, page: 1 });
   for (const item of firstSeedPage.items) {
     if (!seenSlugs.has(item.slug)) seedItems.push(item);
   }
   for (let p = 2; p <= firstSeedPage.totalPages; p += 1) {
-    const nextSeedPage = await listArticles({ author: slug, page: p });
+    const nextSeedPage = listSeedArticles({ author: slug, page: p });
     for (const item of nextSeedPage.items) {
       if (!seenSlugs.has(item.slug)) seedItems.push(item);
     }
@@ -155,14 +179,14 @@ export async function getAllArticleSlugs(): Promise<string[]> {
   return ARTICLES.map((a) => a.slug);
 }
 
-export async function listArticles(opts: {
+function listSeedArticles(opts: {
   kind?: SectionKind;
   section?: string;
   author?: string;
   slugs?: readonly string[];
   page?: number;
   perPage?: number;
-} = {}): Promise<Paginated<ArticleView>> {
+} = {}): Paginated<ArticleView> {
   let all = [...ARTICLES].sort(byDateDesc);
   if (opts.kind && opts.section) {
     all = all.filter((a) => (opts.kind === "kanal" ? a.kanal : a.rubrik) === opts.section);
@@ -174,6 +198,40 @@ export async function listArticles(opts: {
   }
   const page = paginate(all, opts.page ?? 1, opts.perPage ?? 10);
   return { ...page, items: page.items.map(toView) };
+}
+
+export async function listArticles(opts: {
+  kind?: SectionKind;
+  section?: string;
+  author?: string;
+  slugs?: readonly string[];
+  page?: number;
+  perPage?: number;
+} = {}): Promise<Paginated<ArticleView>> {
+  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
+    const pageNum = opts.page ?? 1;
+    const perPage = opts.perPage ?? 10;
+    const slugsKey = opts.slugs ? opts.slugs.join(",") : "";
+    const fromCms = await cachedPublicArticleList(
+      opts.kind ?? "",
+      opts.section ?? "",
+      opts.author ?? "",
+      slugsKey,
+      pageNum,
+      perPage,
+    );
+    if (fromCms.total > 0) return fromCms;
+    // Jika DB sudah berisi konten CMS publik (atau rute seksi khusus DB seperti Opini),
+    // kembalikan daftar CMS tanpa mencampur artikel contoh statis.
+    const isCustomSection = Boolean(
+      opts.kind && opts.section && !SECTIONS.some((s) => s.kind === opts.kind && s.slug === opts.section),
+    );
+    if (isCustomSection || (await cachedPublicHomepage()) !== null) {
+      return fromCms;
+    }
+  }
+
+  return listSeedArticles(opts);
 }
 
 export async function searchArticles(q: string, page = 1): Promise<Paginated<ArticleView>> {
@@ -195,9 +253,25 @@ export interface HomepageData {
   featured: ArticleView[];
   latest: ArticleView[];
   editorialNote: EditorialNote;
+  catatanArticles: ArticleView[];
+  rubricBands: HomepageRubricBand[];
 }
 
 export async function getHomepage(): Promise<HomepageData> {
+  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
+    const cmsHome = await cachedPublicHomepage();
+    if (cmsHome) {
+      return {
+        hero: cmsHome.hero,
+        featured: cmsHome.featured,
+        latest: cmsHome.latest,
+        editorialNote: HOMEPAGE.editorialNote,
+        catatanArticles: cmsHome.catatanArticles,
+        rubricBands: cmsHome.rubricBands,
+      };
+    }
+  }
+
   const sorted = [...ARTICLES].sort(byDateDesc);
   const hero = ARTICLES.find((a) => a.slug === HOMEPAGE.hero) ?? sorted[0];
   const featured = HOMEPAGE.featured
@@ -210,10 +284,18 @@ export async function getHomepage(): Promise<HomepageData> {
     featured: featured.map(toView),
     latest: latest.map(toView),
     editorialNote: HOMEPAGE.editorialNote,
+    catatanArticles: [],
+    rubricBands: [],
   };
 }
 
 export async function getFeaturedSlugs(): Promise<readonly string[]> {
+  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
+    const fromCms = await cachedPublicFeaturedSlugs();
+    if (fromCms.length > 0 || (await cachedPublicHomepage()) !== null) {
+      return fromCms;
+    }
+  }
   return HOMEPAGE.featured;
 }
 

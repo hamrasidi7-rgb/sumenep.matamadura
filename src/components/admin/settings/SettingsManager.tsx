@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ImageIcon, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -232,8 +233,15 @@ export function SettingsManager({ data }: { data: CmsSettingsData }) {
           </div>
 
           <fieldset disabled={pending} className="space-y-4 disabled:opacity-60">
-            <label className="block text-sm font-semibold text-ink" htmlFor="hero-article">
-              Berita utama (Hero)
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-sm font-semibold text-ink" htmlFor="hero-article">
+                  Berita utama (Hero)
+                </label>
+                <Link href="/admin/hero" className="text-xs font-semibold text-brand hover:underline">
+                  Kelola pencarian &amp; riwayat di Hero Utama →
+                </Link>
+              </div>
               <select
                 id="hero-article"
                 value={heroArticleId}
@@ -243,11 +251,11 @@ export function SettingsManager({ data }: { data: CmsSettingsData }) {
                 <option value="">Otomatis (artikel terbit terbaru)</option>
                 {data.publishedArticles.map((article) => (
                   <option key={article.id} value={article.id}>
-                    {article.title} ({article.kanalName})
+                    {article.title} ({article.sectionLabel})
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
 
             <label className="block text-sm font-semibold text-ink" htmlFor="latest-count">
               Jumlah item Berita Terbaru (1–24)
