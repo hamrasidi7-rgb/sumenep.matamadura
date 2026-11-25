@@ -88,6 +88,37 @@ describe("article social sharing metadata (Open Graph & Twitter Card)", () => {
     assert.equal(twImages[0].url, "https://sumenep.matamaduranews.com/media/2026/11/b394016efc207243.webp");
   });
 
+  test("social cards always prioritize article title, lead summary (<=160), and hero photo even when CMS SEO fields differ", () => {
+    const meta = buildArticleMetadata(
+      makeArticle({
+        standfirst:
+          "Hasil Analisis politik lokal berbasis Kecerdasan\u00A0 Buatan—membaca peta kekuatan PKB Sumenep menuju pemilihan kepala daerah berikutnya",
+        seo: {
+          title: "PKB Sumenep,",
+          description: "Paragraf pembuka lain yang bukan lead artikel.",
+          ogImage: { src: "/media/2026/11/other-og.webp", width: 1200, height: 630, alt: "Lainnya" },
+        },
+      }),
+      SITE_FIXTURE,
+    );
+
+    const og = meta.openGraph as Record<string, unknown>;
+    assert.equal(og.title, "Setelah Bupati Fauzi, Apa Giliran PKB? Menakar Cabup PKB Sumenep");
+    assert.equal(
+      og.description,
+      "Hasil Analisis politik lokal berbasis Kecerdasan Buatan—membaca peta kekuatan PKB Sumenep menuju pemilihan kepala daerah berikutnya",
+    );
+    assert.ok((og.description as string).length <= 160);
+    const ogImages = og.images as Array<Record<string, unknown>>;
+    assert.equal(ogImages[0].url, "https://sumenep.matamaduranews.com/media/2026/11/b394016efc207243.webp");
+
+    const tw = meta.twitter as Record<string, unknown>;
+    assert.equal(tw.title, "Setelah Bupati Fauzi, Apa Giliran PKB? Menakar Cabup PKB Sumenep");
+    assert.equal(tw.description, og.description);
+    const twImages = tw.images as Array<Record<string, unknown>>;
+    assert.equal(twImages[0].url, "https://sumenep.matamaduranews.com/media/2026/11/b394016efc207243.webp");
+  });
+
   test("falls back cleanly to /og-default.png when hero is an SVG illustration", () => {
     const meta = buildArticleMetadata(
       makeArticle({

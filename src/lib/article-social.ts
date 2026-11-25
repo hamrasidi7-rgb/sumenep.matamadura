@@ -53,45 +53,54 @@ function imageMimeFromUrl(url: string): string | undefined {
 /**
  * Menyusun metadata SEO, Open Graph (WhatsApp/Facebook), dan Twitter Card (X)
  * untuk halaman detail artikel:
- * - Judul utama = judul artikel (atau override SEO title jika diisi)
- * - Deskripsi = ringkasan lead/standfirst (maksimal 160 karakter)
- * - Thumbnail = foto utama artikel (URL absolut, width/height/alt/type)
+ * - Social sharing (OG & Twitter Card) selalu menampilkan:
+ *   1. Judul artikel sebagai judul utama
+ *   2. Ringkasan lead/standfirst (maksimal 160 karakter) sebagai deskripsi
+ *   3. Foto utama artikel sebagai thumbnail (URL absolut, width/height/alt/type)
  */
 export function buildArticleMetadata(article: ArticleView, site: SiteSocialDefaults): Metadata {
-  const title = (article.seo?.title?.trim() || article.title).replace(/\s+/g, " ").trim();
-  const rawDescription = article.seo?.description?.trim() || article.standfirst || site.description;
-  const description = truncateSocialDescription(rawDescription, MAX_SOCIAL_DESCRIPTION);
+  const articleTitle = article.title.replace(/\s+/g, " ").trim();
+  const seoTitle = (article.seo?.title?.trim() || articleTitle).replace(/\s+/g, " ").trim();
+
+  const socialDescription = truncateSocialDescription(
+    article.standfirst?.trim() || article.seo?.description?.trim() || site.description,
+    MAX_SOCIAL_DESCRIPTION,
+  );
+  const seoDescription = truncateSocialDescription(
+    article.seo?.description?.trim() || article.standfirst?.trim() || site.description,
+    MAX_SOCIAL_DESCRIPTION,
+  );
 
   const canonicalPath = article.seo?.canonicalUrl?.trim() || `/artikel/${article.slug}`;
   const articleUrl = toAbsoluteUrl(canonicalPath, site.url);
 
   const chosenImage =
-    article.seo?.ogImage && !article.seo.ogImage.src.endsWith(".svg")
-      ? article.seo.ogImage
-      : !article.hero.src.endsWith(".svg")
-        ? article.hero
+    !article.hero.src.endsWith(".svg")
+      ? article.hero
+      : article.seo?.ogImage && !article.seo.ogImage.src.endsWith(".svg")
+        ? article.seo.ogImage
         : {
             src: FALLBACK_OG_IMAGE.src,
             width: FALLBACK_OG_IMAGE.width,
             height: FALLBACK_OG_IMAGE.height,
-            alt: title,
+            alt: articleTitle,
           };
 
   const imageUrl = toAbsoluteUrl(chosenImage.src, site.url);
-  const imageAlt = chosenImage.alt?.trim() || title;
+  const imageAlt = chosenImage.alt?.trim() || articleTitle;
   const imageType = imageMimeFromUrl(imageUrl);
 
   return {
-    title,
-    description,
+    title: seoTitle,
+    description: seoDescription,
     alternates: { canonical: canonicalPath },
     openGraph: {
       type: "article",
       url: articleUrl,
       siteName: site.name,
       locale: site.locale,
-      title,
-      description,
+      title: articleTitle,
+      description: socialDescription,
       publishedTime: article.publishedAt,
       ...(article.updatedAt ? { modifiedTime: article.updatedAt } : {}),
       authors: [article.author.name],
@@ -110,8 +119,8 @@ export function buildArticleMetadata(article: ArticleView, site: SiteSocialDefau
     },
     twitter: {
       card: "summary_large_image",
-      title,
-      description,
+      title: articleTitle,
+      description: socialDescription,
       images: [{ url: imageUrl, alt: imageAlt }],
     },
   };
