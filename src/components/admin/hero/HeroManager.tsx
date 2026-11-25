@@ -110,9 +110,8 @@ export function HeroManager({ data }: { data: HeroManagerData }) {
     <div className="space-y-6">
       {!data.cmsPublicEnabled && (
         <Notice tone="info">
-          Pembacaan beranda publik dari database saat ini masih dikunci (<code>CMS_PUBLIC_ARTICLES</code> belum bernilai{" "}
-          <code>on</code>). Perubahan Hero Utama tetap tersimpan di database dan akan otomatis tampil saat{" "}
-          <code>CMS_PUBLIC_ARTICLES=on</code> diaktifkan.
+          Mode penuh artikel CMS (<code>CMS_PUBLIC_ARTICLES</code>) masih nonaktif. Konten{" "}
+          <strong>Hero Utama yang Anda pilih di sini tetap langsung tampil di beranda publik</strong> (beserta halaman detail artikel &amp; profil penulisnya), sedangkan artikel CMS lainnya tetap terkunci.
         </Notice>
       )}
 

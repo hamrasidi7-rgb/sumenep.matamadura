@@ -2,7 +2,7 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 
-import type { Section, SectionKind } from "@/content/types";
+import type { Author, Section, SectionKind } from "@/content/types";
 import type { ArticleView, Paginated } from "@/lib/content";
 import { ARTICLES_TAG } from "@/server/articles/public";
 import { getDb } from "@/server/db";
@@ -11,8 +11,12 @@ import {
   publicArticleList,
   publicFeaturedSlugs,
   publicHomepageData,
+  publicSearchArticles,
   publicSectionBySlug,
   publicSectionsList,
+  publicSelectedHeroArticleBySlug,
+  publicSelectedHeroAuthor,
+  publicSelectedHeroCard,
   type PublicArticleListOptions,
 } from "./queries";
 import type { ResolvedHomepageSlots } from "./slots";
@@ -28,6 +32,25 @@ const options = { tags: [ARTICLES_TAG], revalidate: CACHE_SECONDS };
 export const cachedPublicHomepage = unstable_cache(
   async (): Promise<ResolvedHomepageSlots | null> => publicHomepageData(getDb()),
   ["cms-public-homepage"],
+  options,
+);
+
+export const cachedSelectedHero = unstable_cache(
+  async (): Promise<ArticleView | null> => publicSelectedHeroCard(getDb()),
+  ["cms-selected-hero-card"],
+  options,
+);
+
+export const cachedSelectedHeroArticle = unstable_cache(
+  async (slug: string): Promise<ArticleView | null> => publicSelectedHeroArticleBySlug(getDb(), slug),
+  ["cms-selected-hero-article"],
+  options,
+);
+
+export const cachedSelectedHeroAuthor = unstable_cache(
+  async (slug: string): Promise<{ author: Author; heroArticle: ArticleView } | null> =>
+    publicSelectedHeroAuthor(getDb(), slug),
+  ["cms-selected-hero-author"],
   options,
 );
 
@@ -69,5 +92,12 @@ export const cachedPublicArticleList = unstable_cache(
     return publicArticleList(getDb(), opts);
   },
   ["cms-public-article-list"],
+  options,
+);
+
+export const cachedPublicSearch = unstable_cache(
+  async (q: string, page: number, perPage: number): Promise<Paginated<ArticleView>> =>
+    publicSearchArticles(getDb(), q, page, perPage),
+  ["cms-public-search"],
   options,
 );

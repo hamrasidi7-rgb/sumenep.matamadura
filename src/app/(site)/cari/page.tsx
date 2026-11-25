@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { ArchiveView } from "@/components/article/ArchiveView";
 import { searchArticles } from "@/lib/content";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Cari",
   robots: { index: false, follow: true },

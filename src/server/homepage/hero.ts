@@ -425,7 +425,7 @@ export async function getHeroManagerData(
   });
 
   return {
-    cmsPublicEnabled: process.env.CMS_PUBLIC_ARTICLES === "on",
+    cmsPublicEnabled: process.env.CMS_PUBLIC_ARTICLES !== "off",
     updatedAtIso: settingsRow?.updatedAt.toISOString() ?? null,
     active: {
       configuredId,

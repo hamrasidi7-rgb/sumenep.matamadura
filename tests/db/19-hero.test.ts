@@ -9,7 +9,12 @@ import {
   parseHeroFilters,
   setHomepageHero,
 } from "@/server/homepage/hero";
-import { publicHomepageData } from "@/server/homepage/queries";
+import {
+  publicHomepageData,
+  publicSelectedHeroArticleBySlug,
+  publicSelectedHeroAuthor,
+  publicSelectedHeroCard,
+} from "@/server/homepage/queries";
 import { updateHomepageSettings } from "@/server/settings/service";
 
 import { connect, resetData } from "../helpers/db";
@@ -201,8 +206,22 @@ describe("Hero Utama backend service, history, & editorial homepage placement (D
     const featureOnly = await getHeroManagerData(app, parseHeroFilters({ template: "FEATURE" }), now);
     assert.deepEqual(featureOnly.candidates.items.map((c) => c.slug), [feature.slug]);
 
-    // 3. Set Catatan Sumenep as Hero → check homepage slots
+    // 3. Set Catatan Sumenep as Hero → check homepage slots AND isolated Hero queries (CMS_PUBLIC_ARTICLES=off mode)
     assert.equal((await setHomepageHero(app, catatan.id, actor, now)).ok, true);
+    const isolatedCard = await publicSelectedHeroCard(app, now);
+    assert.equal(isolatedCard?.slug, catatan.slug);
+    const isolatedArticle = await publicSelectedHeroArticleBySlug(app, catatan.slug, now);
+    assert.equal(isolatedArticle?.slug, catatan.slug);
+    assert.ok((isolatedArticle?.body.length ?? 0) > 0, "isolated Hero article detail must include body blocks");
+    // Non-Hero CMS articles must stay blocked (null → 404) in isolated mode
+    assert.equal(await publicSelectedHeroArticleBySlug(app, berita1.slug, now), null);
+    assert.equal(await publicSelectedHeroArticleBySlug(app, hiddenArticle.slug, now), null);
+    // Isolated author lookup exposes ONLY the active Hero's author
+    const isolatedAuthor = await publicSelectedHeroAuthor(app, author.slug, now);
+    assert.equal(isolatedAuthor?.author.slug, author.slug);
+    assert.equal(isolatedAuthor?.heroArticle.slug, catatan.slug);
+    assert.equal(await publicSelectedHeroAuthor(app, "penulis-lain", now), null);
+
     let home = (await publicHomepageData(app, now))!;
     assert.equal(home.heroMode, "manual");
     assert.equal(home.hero.slug, catatan.slug);
@@ -251,6 +270,9 @@ describe("Hero Utama backend service, history, & editorial homepage placement (D
 
     // 7. Clear Hero back to automatic (newest eligible = berita1) and verify zero article mutation/duplication
     assert.equal((await clearHomepageHero(app, actor)).ok, true);
+    // In isolated mode (CMS_PUBLIC_ARTICLES=off), automatic mode (heroArticleId = null) must return null (seed fallback)
+    assert.equal(await publicSelectedHeroCard(app, now), null);
+    assert.equal(await publicSelectedHeroArticleBySlug(app, berita1.slug, now), null);
     assert.equal(await owner.article.count(), totalArticlesBefore, "must never duplicate articles");
     assert.equal(await owner.homepageSettings.count(), 1, "singleton homepage_settings must stay 1 row");
 

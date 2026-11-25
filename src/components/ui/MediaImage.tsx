@@ -22,7 +22,7 @@ export function MediaImage({
   rounded?: boolean;
   className?: string;
 }) {
-  const isSvg = media.src.endsWith(".svg");
+  const isUnoptimized = media.src.endsWith(".svg") || media.src.startsWith("/media/");
   return (
     <div
       className={`relative overflow-hidden bg-warm ${rounded ? "rounded-[var(--radius-media)]" : ""} ${className}`}
@@ -33,7 +33,7 @@ export function MediaImage({
         alt={media.alt}
         fill
         sizes={sizes}
-        unoptimized={isSvg}
+        unoptimized={isUnoptimized}
         loading={eager ? "eager" : "lazy"}
         fetchPriority={eager ? "high" : undefined}
         className="object-cover"

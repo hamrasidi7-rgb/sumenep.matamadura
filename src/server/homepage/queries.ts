@@ -1,10 +1,11 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-import type { ArticleTemplate, MediaAsset, Section, SectionKind } from "@/content/types";
+import type { ArticleTemplate, Author, MediaAsset, Section, SectionKind } from "@/content/types";
 import { resolvePublicAuthor } from "@/lib/author";
 import type { ArticleView, Paginated } from "@/lib/content";
 import { publicWhere } from "@/server/articles/status";
 import { toTags } from "@/server/articles/tags";
+import { publicArticleView } from "@/server/articles/view";
 import { toMediaAsset, toMediaDto } from "@/server/media/service";
 
 import { eligibleHeroWhere } from "./hero";
@@ -362,6 +363,127 @@ export async function publicArticleList(
           orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
           skip: (current - 1) * perPage,
           take: perPage,
+          select: PUBLIC_CARD_SELECT,
+        });
+
+  return {
+    items: rows.map((r) => toCardView(r, now)),
+    page: current,
+    totalPages,
+    total,
+  };
+}
+
+/**
+ * Membaca HANYA 1 artikel yang secara eksplisit dipilih redaksi di
+ * `homepage_settings.hero_article_id` dan memenuhi syarat tayang beranda.
+ * Digunakan saat `CMS_PUBLIC_ARTICLES` nonaktif agar Hero Utama pilihan redaksi
+ * tetap tampil di beranda tanpa membuka artikel CMS lain ke publik.
+ */
+export async function publicSelectedHeroCard(
+  db: PrismaClient,
+  now = new Date(),
+): Promise<ArticleView | null> {
+  const settings = await db.homepageSettings.findUnique({
+    where: { id: 1 },
+    select: { heroArticleId: true },
+  });
+  if (!settings?.heroArticleId) return null;
+
+  const row = await db.article.findFirst({
+    where: { AND: [{ id: settings.heroArticleId }, eligibleHeroWhere(now)] },
+    select: PUBLIC_CARD_SELECT,
+  });
+  return row ? toCardView(row, now) : null;
+}
+
+/**
+ * Membaca detail lengkap artikel (termasuk isi blok & Author Box) HANYA bila
+ * `slug` tersebut adalah Hero Utama yang sedang aktif dipilih redaksi.
+ * Artikel CMS lain yang bukan Hero aktif selalu mengembalikan `null` (404).
+ */
+export async function publicSelectedHeroArticleBySlug(
+  db: PrismaClient,
+  slug: string,
+  now = new Date(),
+): Promise<ArticleView | null> {
+  const settings = await db.homepageSettings.findUnique({
+    where: { id: 1 },
+    select: { heroArticleId: true },
+  });
+  if (!settings?.heroArticleId) return null;
+
+  const match = await db.article.findFirst({
+    where: { AND: [{ id: settings.heroArticleId }, { slug }, eligibleHeroWhere(now)] },
+    select: { slug: true },
+  });
+  if (!match) return null;
+
+  return publicArticleView(db, match.slug, now);
+}
+
+/**
+ * Membaca profil penulis milik Hero Utama aktif (beserta kartu artikel Hero-nya)
+ * agar tautan penulis pada Hero Utama dan Author Box tidak 404 saat
+ * `CMS_PUBLIC_ARTICLES` nonaktif. Penulis CMS lain tetap terkunci.
+ */
+export async function publicSelectedHeroAuthor(
+  db: PrismaClient,
+  authorSlug: string,
+  now = new Date(),
+): Promise<{ author: Author; heroArticle: ArticleView } | null> {
+  const hero = await publicSelectedHeroCard(db, now);
+  if (!hero || hero.author.slug !== authorSlug) return null;
+  return { author: hero.author, heroArticle: hero };
+}
+
+/**
+ * Pencarian publik artikel CMS yang sudah terbit (untuk /cari).
+ */
+export async function publicSearchArticles(
+  db: PrismaClient,
+  rawQuery: string,
+  page = 1,
+  perPage = 10,
+  now = new Date(),
+): Promise<Paginated<ArticleView>> {
+  const terms = rawQuery
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 8);
+  if (terms.length === 0) {
+    return { items: [], page: 1, totalPages: 1, total: 0 };
+  }
+
+  const safePerPage = Math.max(1, Math.min(50, Math.floor(perPage) || 10));
+  const requestedPage = Math.max(1, Math.floor(page) || 1);
+
+  const where: Prisma.ArticleWhereInput = {
+    AND: [
+      publicWhere(now),
+      ...terms.map((term) => ({
+        OR: [
+          { title: { contains: term } },
+          { standfirst: { contains: term } },
+          { slug: { contains: term.toLowerCase() } },
+          { bodyText: { contains: term } },
+        ],
+      })),
+    ],
+  };
+
+  const total = await db.article.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / safePerPage));
+  const current = Math.min(requestedPage, totalPages);
+  const rows =
+    total === 0
+      ? []
+      : await db.article.findMany({
+          where,
+          orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
+          skip: (current - 1) * safePerPage,
+          take: safePerPage,
           select: PUBLIC_CARD_SELECT,
         });
 

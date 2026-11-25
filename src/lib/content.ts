@@ -1,10 +1,7 @@
 import "server-only";
 
-import { ARTICLES, AUTHORS, HOMEPAGE } from "@/content/seed";
 import { SECTIONS } from "@/content/sections";
 import type { Article, Author, EditorialNote, Section, SectionKind } from "@/content/types";
-import { withHeadingIds } from "@/lib/article-utils";
-import { DEFAULT_AUTHOR, resolvePublicAuthor } from "@/lib/author";
 import { cachedPublicArticle, cachedRedirectTarget, cachedRelated } from "@/server/articles/public";
 import {
   cachedPublicArticlesByAuthor,
@@ -16,46 +13,41 @@ import {
   cachedPublicArticleList,
   cachedPublicFeaturedSlugs,
   cachedPublicHomepage,
+  cachedPublicSearch,
   cachedPublicSection,
   cachedPublicSections,
+  cachedSelectedHero,
+  cachedSelectedHeroArticle,
+  cachedSelectedHeroAuthor,
 } from "@/server/homepage/public";
 import type { HomepageRubricBand } from "@/server/homepage/slots";
 
-// Content adapter. Today it reads the demo seed; in Tahap 5 each function is
-// re-implemented on top of the Payload Local API with the same signatures.
-// Components import from here only — never from src/content/seed.ts.
+// Content adapter publik SUMENEP – Mata Madura.
+// Seluruh konten artikel, penulis, pencarian, dan kurasi beranda dibaca dari
+// database CMS MariaDB (tanpa konten contoh / demo).
 
-export const CONTENT_SOURCE: "seed" | "cms" = "seed";
+export const CONTENT_SOURCE: "seed" | "cms" = "cms";
 
 /**
- * Fase 4: with CMS_PUBLIC_ARTICLES=on, /artikel/[slug] first looks for a
- * PUBLISHED article in the CMS database (publish time reached, not archived,
- * not in the trash) and falls back to the demo seed. Lists (homepage, kanal,
- * rubrik, search) stay on the seed until the full integration in Fase 8.
+ * Aktif secara bawaan untuk membaca konten CMS publik dari database.
+ * Hanya nonaktif bila `CMS_PUBLIC_ARTICLES=off` secara eksplisit di environment
+ * (dalam mode terkunci tersebut, hanya 1 Hero Utama pilihan redaksi yang tetap
+ * dapat dibaca).
  */
-export const CMS_ARTICLES = process.env.CMS_PUBLIC_ARTICLES === "on";
+export const CMS_ARTICLES = process.env.CMS_PUBLIC_ARTICLES !== "off";
 
-/** Article with relations populated (what Payload returns with depth ≥ 1). */
+const DEFAULT_EDITORIAL_NOTE: EditorialNote = {
+  title: "Catatan Sumenep",
+  description: "Gagasan, pengamatan, dan cerita tentang Sumenep lebih dekat dan lebih utuh.",
+  href: "/rubrik/catatan-sumenep",
+};
+
+/** Article with relations populated for public templates. */
 export type ArticleView = Omit<Article, "author"> & {
   author: Author;
   /** Label shown above the title: the rubrik if any, else the kanal. */
   section?: Section;
 };
-
-const FALLBACK_AUTHOR: Author = DEFAULT_AUTHOR;
-
-function toView(a: Article): ArticleView {
-  const kind: SectionKind = a.rubrik ? "rubrik" : "kanal";
-  const slug = a.rubrik ?? a.kanal;
-  return {
-    ...a,
-    body: withHeadingIds(a.body),
-    author: AUTHORS.find((x) => x.slug === a.author) ?? FALLBACK_AUTHOR,
-    section: SECTIONS.find((s) => s.kind === kind && s.slug === slug),
-  };
-}
-
-const byDateDesc = (a: Article, b: Article) => b.publishedAt.localeCompare(a.publishedAt);
 
 export interface Paginated<T> {
   items: T[];
@@ -64,140 +56,118 @@ export interface Paginated<T> {
   total: number;
 }
 
-function paginate<T>(all: T[], page: number, perPage: number): Paginated<T> {
-  const totalPages = Math.max(1, Math.ceil(all.length / perPage));
-  const current = Math.min(Math.max(1, Math.floor(page) || 1), totalPages);
-  return {
-    items: all.slice((current - 1) * perPage, current * perPage),
-    page: current,
-    totalPages,
-    total: all.length,
-  };
+const EMPTY_PAGE: Paginated<ArticleView> = {
+  items: [],
+  page: 1,
+  totalPages: 1,
+  total: 0,
+};
+
+const AUTHOR_ARCHIVE_PAGE_SIZE = 12;
+
+function hasDatabase(): boolean {
+  return Boolean(configuredDatabaseParts(process.env));
 }
 
 export async function getSections(kind?: SectionKind): Promise<Section[]> {
-  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
+  if (CMS_ARTICLES && hasDatabase()) {
     try {
       const fromCms = await cachedPublicSections(kind);
       if (fromCms.length > 0) return fromCms;
     } catch {
-      // Jatuh kembali ke daftar seksi bawaan bila database belum siap (mis. saat build).
+      // Fallback ke struktur kanal/rubrik bawaan bila database belum siap (mis. saat build).
     }
   }
   return kind ? SECTIONS.filter((s) => s.kind === kind) : SECTIONS;
 }
 
 export async function getSection(kind: SectionKind, slug: string): Promise<Section | null> {
-  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
+  if (CMS_ARTICLES && hasDatabase()) {
     try {
       const fromCms = await cachedPublicSection(kind, slug);
       if (fromCms) return fromCms;
     } catch {
-      // Fallback ke seksi bawaan.
+      // Fallback ke struktur seksi bawaan.
     }
   }
   return SECTIONS.find((s) => s.kind === kind && s.slug === slug) ?? null;
 }
 
 export async function getAuthor(slug: string): Promise<Author | null> {
-  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
-    const fromCms = await cachedPublicAuthor(slug);
-    if (fromCms) return fromCms;
+  if (!hasDatabase()) return null;
+  try {
+    if (CMS_ARTICLES) {
+      return await cachedPublicAuthor(slug);
+    }
+    const heroAuthor = await cachedSelectedHeroAuthor(slug);
+    return heroAuthor?.author ?? null;
+  } catch {
+    return null;
   }
-  const seed = AUTHORS.find((a) => a.slug === slug);
-  return seed ? resolvePublicAuthor(seed) : null;
 }
 
 export async function getAuthors(): Promise<Author[]> {
-  const bySlug = new Map<string, Author>();
-  for (const author of AUTHORS) {
-    bySlug.set(author.slug, resolvePublicAuthor(author));
+  if (!(CMS_ARTICLES && hasDatabase())) return [];
+  try {
+    return await cachedPublicAuthors();
+  } catch {
+    return [];
   }
-  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
-    const fromCms = await cachedPublicAuthors();
-    for (const author of fromCms) {
-      bySlug.set(author.slug, author);
-    }
-  }
-  return [...bySlug.values()];
 }
-
-const AUTHOR_ARCHIVE_PAGE_SIZE = 12;
 
 export async function listAuthorArticles(slug: string, page = 1): Promise<Paginated<ArticleView>> {
   const safeRequestedPage = Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1;
-  if (!(CMS_ARTICLES && configuredDatabaseParts(process.env))) {
-    return listArticles({ author: slug, page: safeRequestedPage });
-  }
+  if (!hasDatabase()) return EMPTY_PAGE;
 
-  const cmsItems = await cachedPublicArticlesByAuthor(slug);
-  const seenSlugs = new Set(cmsItems.map((item) => item.slug));
-
-  const seedItems: ArticleView[] = [];
-  const firstSeedPage = listSeedArticles({ author: slug, page: 1 });
-  for (const item of firstSeedPage.items) {
-    if (!seenSlugs.has(item.slug)) seedItems.push(item);
-  }
-  for (let p = 2; p <= firstSeedPage.totalPages; p += 1) {
-    const nextSeedPage = listSeedArticles({ author: slug, page: p });
-    for (const item of nextSeedPage.items) {
-      if (!seenSlugs.has(item.slug)) seedItems.push(item);
+  try {
+    let items: ArticleView[] = [];
+    if (CMS_ARTICLES) {
+      items = await cachedPublicArticlesByAuthor(slug);
+    } else {
+      const heroAuthor = await cachedSelectedHeroAuthor(slug);
+      if (heroAuthor) items = [heroAuthor.heroArticle];
     }
+
+    const total = items.length;
+    const totalPages = Math.max(1, Math.ceil(total / AUTHOR_ARCHIVE_PAGE_SIZE));
+    const currentPage = Math.min(safeRequestedPage, totalPages);
+    const offset = (currentPage - 1) * AUTHOR_ARCHIVE_PAGE_SIZE;
+
+    return {
+      items: items.slice(offset, offset + AUTHOR_ARCHIVE_PAGE_SIZE),
+      page: currentPage,
+      totalPages,
+      total,
+    };
+  } catch {
+    return EMPTY_PAGE;
   }
-
-  const combined = [...cmsItems, ...seedItems].sort(
-    (a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt),
-  );
-  const total = combined.length;
-  const totalPages = Math.max(1, Math.ceil(total / AUTHOR_ARCHIVE_PAGE_SIZE));
-  const currentPage = Math.min(safeRequestedPage, totalPages);
-  const offset = (currentPage - 1) * AUTHOR_ARCHIVE_PAGE_SIZE;
-
-  return {
-    items: combined.slice(offset, offset + AUTHOR_ARCHIVE_PAGE_SIZE),
-    page: currentPage,
-    totalPages,
-    total,
-  };
 }
 
 export async function getArticle(slug: string): Promise<ArticleView | null> {
-  if (CMS_ARTICLES) {
-    const fromCms = await cachedPublicArticle(slug);
-    if (fromCms) return fromCms;
+  if (!hasDatabase()) return null;
+  try {
+    if (CMS_ARTICLES) {
+      return await cachedPublicArticle(slug);
+    }
+    return await cachedSelectedHeroArticle(slug);
+  } catch {
+    return null;
   }
-  const a = ARTICLES.find((x) => x.slug === slug);
-  return a ? toView(a) : null;
 }
 
 /** Current slug of a CMS article that used to live at `slug` (for a 301), if it is public. */
 export async function getArticleRedirect(slug: string): Promise<string | null> {
-  return CMS_ARTICLES ? cachedRedirectTarget(slug) : null;
+  if (!(CMS_ARTICLES && hasDatabase())) return null;
+  try {
+    return await cachedRedirectTarget(slug);
+  } catch {
+    return null;
+  }
 }
 
 export async function getAllArticleSlugs(): Promise<string[]> {
-  return ARTICLES.map((a) => a.slug);
-}
-
-function listSeedArticles(opts: {
-  kind?: SectionKind;
-  section?: string;
-  author?: string;
-  slugs?: readonly string[];
-  page?: number;
-  perPage?: number;
-} = {}): Paginated<ArticleView> {
-  let all = [...ARTICLES].sort(byDateDesc);
-  if (opts.kind && opts.section) {
-    all = all.filter((a) => (opts.kind === "kanal" ? a.kanal : a.rubrik) === opts.section);
-  }
-  if (opts.author) all = all.filter((a) => a.author === opts.author);
-  if (opts.slugs) {
-    const order = opts.slugs;
-    all = all.filter((a) => order.includes(a.slug)).sort((a, b) => order.indexOf(a.slug) - order.indexOf(b.slug));
-  }
-  const page = paginate(all, opts.page ?? 1, opts.perPage ?? 10);
-  return { ...page, items: page.items.map(toView) };
+  return [];
 }
 
 export async function listArticles(opts: {
@@ -208,11 +178,12 @@ export async function listArticles(opts: {
   page?: number;
   perPage?: number;
 } = {}): Promise<Paginated<ArticleView>> {
-  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
+  if (!(CMS_ARTICLES && hasDatabase())) return EMPTY_PAGE;
+  try {
     const pageNum = opts.page ?? 1;
     const perPage = opts.perPage ?? 10;
     const slugsKey = opts.slugs ? opts.slugs.join(",") : "";
-    const fromCms = await cachedPublicArticleList(
+    return await cachedPublicArticleList(
       opts.kind ?? "",
       opts.section ?? "",
       opts.author ?? "",
@@ -220,36 +191,23 @@ export async function listArticles(opts: {
       pageNum,
       perPage,
     );
-    if (fromCms.total > 0) return fromCms;
-    // Jika DB sudah berisi konten CMS publik (atau rute seksi khusus DB seperti Opini),
-    // kembalikan daftar CMS tanpa mencampur artikel contoh statis.
-    const isCustomSection = Boolean(
-      opts.kind && opts.section && !SECTIONS.some((s) => s.kind === opts.kind && s.slug === opts.section),
-    );
-    if (isCustomSection || (await cachedPublicHomepage()) !== null) {
-      return fromCms;
-    }
+  } catch {
+    return EMPTY_PAGE;
   }
-
-  return listSeedArticles(opts);
 }
 
 export async function searchArticles(q: string, page = 1): Promise<Paginated<ArticleView>> {
-  const terms = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
-  const hits = terms.length
-    ? [...ARTICLES]
-        .filter((a) => {
-          const hay = `${a.title} ${a.standfirst} ${a.tags.join(" ")}`.toLowerCase();
-          return terms.every((t) => hay.includes(t));
-        })
-        .sort(byDateDesc)
-    : [];
-  const p = paginate(hits, page, 10);
-  return { ...p, items: p.items.map(toView) };
+  const clean = q.trim();
+  if (!clean || !(CMS_ARTICLES && hasDatabase())) return EMPTY_PAGE;
+  try {
+    return await cachedPublicSearch(clean, Math.max(1, Math.floor(page) || 1), 10);
+  } catch {
+    return EMPTY_PAGE;
+  }
 }
 
 export interface HomepageData {
-  hero: ArticleView;
+  hero: ArticleView | null;
   featured: ArticleView[];
   latest: ArticleView[];
   editorialNote: EditorialNote;
@@ -258,57 +216,63 @@ export interface HomepageData {
 }
 
 export async function getHomepage(): Promise<HomepageData> {
-  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
-    const cmsHome = await cachedPublicHomepage();
-    if (cmsHome) {
-      return {
-        hero: cmsHome.hero,
-        featured: cmsHome.featured,
-        latest: cmsHome.latest,
-        editorialNote: HOMEPAGE.editorialNote,
-        catatanArticles: cmsHome.catatanArticles,
-        rubricBands: cmsHome.rubricBands,
-      };
+  if (hasDatabase()) {
+    try {
+      if (CMS_ARTICLES) {
+        const cmsHome = await cachedPublicHomepage();
+        if (cmsHome) {
+          return {
+            hero: cmsHome.hero,
+            featured: cmsHome.featured,
+            latest: cmsHome.latest,
+            editorialNote: DEFAULT_EDITORIAL_NOTE,
+            catatanArticles: cmsHome.catatanArticles,
+            rubricBands: cmsHome.rubricBands,
+          };
+        }
+      } else {
+        const selectedHero = await cachedSelectedHero();
+        if (selectedHero) {
+          return {
+            hero: selectedHero,
+            featured: [],
+            latest: [],
+            editorialNote: DEFAULT_EDITORIAL_NOTE,
+            catatanArticles: [],
+            rubricBands: [],
+          };
+        }
+      }
+    } catch {
+      // Jatuh kembali ke beranda kosong yang aman bila database belum terjangkau.
     }
   }
 
-  const sorted = [...ARTICLES].sort(byDateDesc);
-  const hero = ARTICLES.find((a) => a.slug === HOMEPAGE.hero) ?? sorted[0];
-  const featured = HOMEPAGE.featured
-    .map((slug) => ARTICLES.find((a) => a.slug === slug))
-    .filter((a): a is Article => Boolean(a));
-  const shown = new Set([hero.slug, ...featured.map((a) => a.slug)]);
-  const latest = sorted.filter((a) => !shown.has(a.slug)).slice(0, HOMEPAGE.latestCount);
   return {
-    hero: toView(hero),
-    featured: featured.map(toView),
-    latest: latest.map(toView),
-    editorialNote: HOMEPAGE.editorialNote,
+    hero: null,
+    featured: [],
+    latest: [],
+    editorialNote: DEFAULT_EDITORIAL_NOTE,
     catatanArticles: [],
     rubricBands: [],
   };
 }
 
 export async function getFeaturedSlugs(): Promise<readonly string[]> {
-  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
-    const fromCms = await cachedPublicFeaturedSlugs();
-    if (fromCms.length > 0 || (await cachedPublicHomepage()) !== null) {
-      return fromCms;
-    }
+  if (!(CMS_ARTICLES && hasDatabase())) return [];
+  try {
+    return await cachedPublicFeaturedSlugs();
+  } catch {
+    return [];
   }
-  return HOMEPAGE.featured;
 }
 
 /** Up to `limit` related articles: same kanal, then same rubrik, then latest. */
 export async function getRelatedArticles(article: ArticleView, limit = 3): Promise<ArticleView[]> {
-  if (CMS_ARTICLES && !ARTICLES.some((a) => a.slug === article.slug)) {
-    return cachedRelated(article.slug, article.kanal ?? null, article.rubrik ?? null, limit);
+  if (!(CMS_ARTICLES && hasDatabase())) return [];
+  try {
+    return await cachedRelated(article.slug, article.kanal ?? null, article.rubrik ?? null, limit);
+  } catch {
+    return [];
   }
-  const pool = [...ARTICLES].sort(byDateDesc).filter((a) => a.slug !== article.slug);
-  const score = (a: Article) => (a.kanal && a.kanal === article.kanal ? 2 : 0) + (a.rubrik && a.rubrik === article.rubrik ? 1 : 0);
-  return pool
-    .map((a, i) => ({ a, s: score(a), i }))
-    .sort((x, y) => y.s - x.s || x.i - y.i)
-    .slice(0, limit)
-    .map(({ a }) => toView(a));
 }

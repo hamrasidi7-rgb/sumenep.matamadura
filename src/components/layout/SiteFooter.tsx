@@ -3,7 +3,6 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
 import { sectionHref } from "@/content/sections";
 import type { Section } from "@/content/types";
-import { CONTENT_SOURCE } from "@/lib/content";
 import { FOOTER_LINKS, SITE } from "@/lib/site";
 
 export function SiteFooter({ sections }: { sections: Section[] }) {
@@ -52,9 +51,6 @@ export function SiteFooter({ sections }: { sections: Section[] }) {
             </a>
             .
           </p>
-          {CONTENT_SOURCE === "seed" && (
-            <p>Pratinjau desain: artikel yang tampil adalah konten contoh, bukan berita faktual.</p>
-          )}
         </div>
       </div>
     </footer>
