@@ -8,8 +8,8 @@ import { useState } from "react";
 const ChatorPanel = dynamic(() => import("./ChatorPanel"), { ssr: false });
 
 /**
- * Floating Chator AI button permanently fixed at the center of the viewport
- * (top: 50%; left: 50%; transform: translate(-50%, -50%)) while scrolling up or down.
+ * Floating Chator AI button (collapsed by default), permanently fixed in the
+ * bottom-right corner while scrolling up or down.
  */
 export function ChatorWidget() {
   const [loaded, setLoaded] = useState(false);
@@ -25,11 +25,12 @@ export function ChatorWidget() {
         }}
         aria-haspopup="dialog"
         aria-label="Buka Chator AI (sedang dalam pengembangan)"
-        title="Chator AI"
-        style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
-        className="fixed z-40 flex size-9 items-center justify-center rounded-full border border-[#D5CFC4] bg-[#FAF6F0]/90 text-[#444444] shadow-sm backdrop-blur-sm transition-colors duration-200 hover:border-[#171717] hover:bg-white hover:text-[#171717] motion-reduce:transition-none md:size-10"
+        className="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex size-[4.25rem] flex-col items-center justify-center gap-0.5 rounded-full bg-brand text-white shadow-[var(--shadow-float)] ring-2 ring-white/70 transition-[transform,opacity,background-color] duration-200 hover:bg-brand-deep motion-reduce:transition-none md:size-[4.5rem] lg:right-[calc(1.5rem+env(safe-area-inset-right))] lg:bottom-6"
       >
-        <Bot aria-hidden className="size-4 md:size-[1.125rem]" strokeWidth={1.75} />
+        <Bot aria-hidden className="size-6 md:size-[1.625rem]" strokeWidth={1.9} />
+        <span aria-hidden className="font-sans text-[0.625rem] leading-none font-semibold tracking-[0.01em] md:text-[0.6875rem]">
+          Chator AI
+        </span>
       </button>
       {loaded && <ChatorPanel open={open} onClose={() => setOpen(false)} />}
     </>
