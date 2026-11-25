@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { Logo } from "@/components/brand/Logo";
 import { sectionHref } from "@/content/sections";
 import type { Section } from "@/content/types";
 import { FOOTER_LINKS, SITE } from "@/lib/site";
@@ -27,8 +26,22 @@ export function SiteFooter({ sections }: { sections: Section[] }) {
       <div className="container-site fab-clearance pt-10 md:pt-14">
         <div className="grid grid-cols-2 gap-x-6 gap-y-9 md:gap-y-10 xl:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="col-span-2 xl:col-span-1">
-            <Link href="/" className="inline-block" aria-label={`${SITE.name} — Beranda`}>
-              <Logo alt="" className="h-auto w-[10.5rem]" />
+            <Link href="/" className="group inline-block py-0.5" aria-label={`${SITE.name} — Beranda`}>
+              <div data-footer-wordmark="" className="flex flex-col items-center text-center select-none">
+                <span
+                  data-footer-logo-title=""
+                  className="font-display pl-[0.03em] text-[clamp(1.78125rem,3.3vw,2.4375rem)] leading-[0.95] font-normal tracking-[0.03em] text-[#171717] uppercase md:pl-[0.04em] md:tracking-[0.04em]"
+                >
+                  SUMENEP
+                </span>
+                <span
+                  data-footer-logo-subtext=""
+                  className="mt-0.5 inline-flex items-baseline justify-center font-sans text-[clamp(0.96875rem,1.6vw,1.25rem)] leading-none font-semibold tracking-[-0.01em] lowercase md:mt-1"
+                >
+                  <span className="text-[#171717]">mata</span>
+                  <span className="text-[#A6192E]">madura</span>
+                </span>
+              </div>
             </Link>
             <p className="font-sans mt-3 max-w-xs text-[1.0625rem] leading-snug text-[var(--color-text-primary)]">{SITE.tagline}.</p>
           </div>
