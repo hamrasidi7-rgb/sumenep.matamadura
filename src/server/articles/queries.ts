@@ -163,16 +163,34 @@ export async function stateCounts(db: PrismaClient, now = new Date()): Promise<R
   };
 }
 
+export interface EditorOptionsParams {
+  includeAuthorId?: string;
+  includeUsedAuthors?: boolean;
+}
+
 /** Choices for the editor's selects. */
-export async function editorOptions(db: PrismaClient) {
+export async function editorOptions(db: PrismaClient, opts: EditorOptionsParams = {}) {
+  const authorWhere: Prisma.AuthorWhereInput = opts.includeUsedAuthors
+    ? { OR: [{ isActive: true }, { articles: { some: {} } }] }
+    : opts.includeAuthorId
+      ? { OR: [{ isActive: true }, { id: opts.includeAuthorId }] }
+      : { isActive: true };
   const [sections, authors] = await Promise.all([
     db.section.findMany({ where: { isActive: true }, orderBy: [{ kind: "asc" }, { sortOrder: "asc" }], select: { id: true, kind: true, name: true, slug: true } }),
-    db.author.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, slug: true } }),
+    db.author.findMany({
+      where: authorWhere,
+      orderBy: [{ isActive: "desc" }, { name: "asc" }],
+      select: { id: true, name: true, slug: true, isActive: true },
+    }),
   ]);
   return {
     kanal: sections.filter((s) => s.kind === "KANAL"),
     rubrik: sections.filter((s) => s.kind === "RUBRIK"),
-    authors,
+    authors: authors.map((a) => ({
+      id: a.id,
+      name: a.isActive ? a.name : `${a.name} (nonaktif)`,
+      slug: a.slug,
+    })),
   };
 }
 

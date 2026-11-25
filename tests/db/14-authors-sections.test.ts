@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, describe, test } from "node:test";
 
-import { createArticle } from "@/server/articles/service";
+import { createArticle, publishArticle } from "@/server/articles/service";
+import { editorOptions } from "@/server/articles/queries";
+import {
+  publicArticlesByAuthor,
+  publicAuthorBySlug,
+  publicAuthorsList,
+} from "@/server/authors/queries";
 import {
   createAuthor,
   deleteAuthor,
@@ -101,6 +107,93 @@ describe("authors service (Fase 4)", () => {
     const deleted = await deleteAuthor(app, unused.id, actor);
     assert.ok(deleted.ok);
     assert.equal(await owner.activityLog.count({ where: { action: "author.delete", entityId: unused.id } }), 1);
+  });
+
+  test("editorOptions preserves inactive assigned author and public author queries expose published work", async () => {
+    const avatar = await makeMedia(app, "foto-zainal");
+    const authorCreated = await createAuthor(
+      app,
+      {
+        name: "Dr. Zainal Arifin",
+        role: "Pengamat Budaya",
+        bio: "Meneliti sejarah dan sastra lisan Madura.",
+        avatarId: avatar.id,
+        isActive: true,
+      },
+      actor,
+    );
+    assert.ok(authorCreated.ok);
+
+    const idleInactive = await createAuthor(
+      app,
+      { name: "Kontributor Nonaktif Tanpa Karya", role: "Kontributor", isActive: false },
+      actor,
+    );
+    assert.ok(idleInactive.ok);
+
+    const kanal = await findSection(app, "KANAL", "ekonomi");
+    const hero = await makeMedia(app, "hero-budaya");
+    const created = await createArticle(
+      app,
+      {
+        title: "Jejak Sastra Pesisir Sumenep",
+        standfirst: "Menelusuri tradisi naskah kuno di pesisir timur.",
+        authorId: authorCreated.id,
+        kanalId: kanal.id,
+        heroMediaId: hero.id,
+        body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Isi berita sastra pesisir." }] }] },
+      },
+      actor,
+    );
+    assert.ok(created.ok);
+
+    // Draft article does not appear in public author archive yet.
+    const beforePubAuthor = await publicAuthorBySlug(app, authorCreated.slug);
+    assert.equal(beforePubAuthor?.name, "Dr. Zainal Arifin");
+    assert.equal(beforePubAuthor?.role, "Pengamat Budaya");
+    assert.ok(beforePubAuthor?.avatar?.src.includes("foto-zainal"));
+    assert.equal((await publicArticlesByAuthor(app, authorCreated.slug)).length, 0);
+
+    // Unused inactive author stays hidden from public profile & sitemap list.
+    assert.equal(await publicAuthorBySlug(app, idleInactive.slug), null);
+    assert.equal((await publicAuthorsList(app)).some((a) => a.slug === idleInactive.slug), false);
+
+    // Publish article, then deactivate author -> existing article & profile must stay live and editable.
+    const pub = await publishArticle(
+      app,
+      created.id,
+      created.version,
+      {
+        title: "Jejak Sastra Pesisir Sumenep",
+        standfirst: "Menelusuri tradisi naskah kuno di pesisir timur.",
+        authorId: authorCreated.id,
+        kanalId: kanal.id,
+        heroMediaId: hero.id,
+        body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Isi berita sastra pesisir." }] }] },
+      },
+      null,
+      actor,
+    );
+    assert.ok(pub.ok);
+
+    const toggled = await toggleAuthorActive(app, authorCreated.id, actor);
+    assert.ok(toggled.ok && toggled.isActive === false);
+
+    const plainOpts = await editorOptions(app);
+    assert.equal(plainOpts.authors.some((a) => a.id === authorCreated.id), false);
+
+    const editOpts = await editorOptions(app, { includeAuthorId: authorCreated.id });
+    assert.equal(editOpts.authors.find((a) => a.id === authorCreated.id)?.name, "Dr. Zainal Arifin (nonaktif)");
+
+    const filterOpts = await editorOptions(app, { includeUsedAuthors: true });
+    assert.equal(filterOpts.authors.some((a) => a.id === authorCreated.id), true);
+
+    const pubAfterDeactivate = await publicAuthorBySlug(app, authorCreated.slug);
+    assert.equal(pubAfterDeactivate?.name, "Dr. Zainal Arifin");
+    const pubArticles = await publicArticlesByAuthor(app, authorCreated.slug);
+    assert.equal(pubArticles.length, 1);
+    assert.equal(pubArticles[0]?.title, "Jejak Sastra Pesisir Sumenep");
+    assert.equal(pubArticles[0]?.author.name, "Dr. Zainal Arifin");
   });
 });
 

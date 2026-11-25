@@ -87,6 +87,80 @@ describe("image upload", () => {
     assert.equal(row.originalName, "foto pantai.png");
     assert.match(row.storageKey, /^\d{4}\/\d{2}\/[0-9a-f]{16}\.webp$/, "the stored path never comes from the name");
   });
+
+  test("featured preset crops to exact 1200×750 (16:10) honoring focal point and keeps distinct focal variants separate", async () => {
+    // 1000×1000 image with red top half and blue bottom half so focalY=0 vs focalY=100 produces visibly distinct crops.
+    const redTop = await sharp({ create: { width: 1000, height: 500, channels: 3, background: { r: 220, g: 20, b: 20 } } }).raw().toBuffer();
+    const blueBottom = await sharp({ create: { width: 1000, height: 500, channels: 3, background: { r: 20, g: 40, b: 220 } } }).raw().toBuffer();
+    const dualTone = await sharp(Buffer.concat([redTop, blueBottom]), { raw: { width: 1000, height: 1000, channels: 3 } })
+      .jpeg({ quality: 92 })
+      .toBuffer();
+
+    const topCrop = await service.uploadImage(
+      app,
+      { name: "dual.jpg", bytes: dualTone },
+      { alt: "Crop atas", caption: "Bagian atas", credit: "Foto: Uji" },
+      actor,
+      undefined,
+      { preset: "featured", focalX: 50, focalY: 0 },
+    );
+    assert.equal(topCrop.duplicate, false);
+    assert.deepEqual([topCrop.media.width, topCrop.media.height], [1200, 750]);
+
+    const bottomCrop = await service.uploadImage(
+      app,
+      { name: "dual.jpg", bytes: dualTone },
+      { alt: "Crop bawah", caption: "Bagian bawah", credit: "Foto: Uji" },
+      actor,
+      undefined,
+      { preset: "featured", focalX: 50, focalY: 100 },
+    );
+    assert.equal(bottomCrop.duplicate, false);
+    assert.notEqual(bottomCrop.media.id, topCrop.media.id);
+    assert.deepEqual([bottomCrop.media.width, bottomCrop.media.height], [1200, 750]);
+
+    // Same bytes + same focal point deduplicates cleanly.
+    const repeatTop = await service.uploadImage(
+      app,
+      { name: "dual-repeat.jpg", bytes: dualTone },
+      { alt: "Ulang" },
+      actor,
+      undefined,
+      { preset: "featured", focalX: 50, focalY: 0 },
+    );
+    assert.equal(repeatTop.duplicate, true);
+    assert.equal(repeatTop.media.id, topCrop.media.id);
+
+    // Verify top crop center pixel is red-dominant and bottom crop center pixel is blue-dominant.
+    const topKey = topCrop.media.src.replace(/^\/media\//, "");
+    const bottomKey = bottomCrop.media.src.replace(/^\/media\//, "");
+    const topCenter = await sharp((await storage.getMediaStorage().get(topKey))!)
+      .extract({ left: 600, top: 375, width: 1, height: 1 })
+      .raw()
+      .toBuffer();
+    const bottomCenter = await sharp((await storage.getMediaStorage().get(bottomKey))!)
+      .extract({ left: 600, top: 375, width: 1, height: 1 })
+      .raw()
+      .toBuffer();
+    assert.ok(topCenter[0] > topCenter[2], `top crop center expected red-dominant, got rgb(${topCenter[0]},${topCenter[1]},${topCenter[2]})`);
+    assert.ok(bottomCenter[2] > bottomCenter[0], `bottom crop center expected blue-dominant, got rgb(${bottomCenter[0]},${bottomCenter[1]},${bottomCenter[2]})`);
+
+    // Re-cropping an existing Media Library asset creates a 1200×750 copy preserving alt/caption/credit without mutating original.
+    const original = await service.uploadImage(
+      app,
+      { name: "library-square.jpg", bytes: dualTone },
+      { alt: "Asli persegi", caption: "Caption asli", credit: "Foto: Pustaka" },
+      actor,
+    );
+    assert.deepEqual([original.media.width, original.media.height], [1000, 1000]);
+
+    const recropped = await service.cropExistingMediaToFeatured(app, original.media.id, { focalX: 50, focalY: 20 }, actor);
+    assert.deepEqual([recropped.media.width, recropped.media.height], [1200, 750]);
+    assert.equal(recropped.media.alt, "Asli persegi");
+    assert.equal(recropped.media.caption, "Caption asli");
+    assert.equal(recropped.media.credit, "Foto: Pustaka");
+    assert.notEqual(recropped.media.id, original.media.id);
+  });
 });
 
 describe("deleting media", () => {

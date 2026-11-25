@@ -1,5 +1,18 @@
 import type { ArticleBlock, Inline, ListItem, MediaAsset } from "@/content/types";
 import { withHeadingIds } from "@/lib/article-utils";
+import {
+  normalizeCalloutTone,
+  normalizeDividerVariant,
+  normalizeFactBoxTone,
+  normalizeFontSize,
+  normalizeHighlightColor,
+  normalizeImageAlign,
+  normalizeImageRatio,
+  normalizeImageSize,
+  normalizeLargeStatementTone,
+  normalizePullQuoteVariant,
+  normalizeTextColor,
+} from "@/lib/editorial-tokens";
 
 import { NODE, type DocNode } from "@/lib/article-doc";
 
@@ -10,7 +23,7 @@ import { NODE, type DocNode } from "@/lib/article-doc";
 // Media are resolved through `media` (id → MediaAsset). A block whose media no
 // longer exists is left out rather than rendered broken.
 
-export type MediaLookup = (id: string, override?: { alt?: string; caption?: string }) => MediaAsset | null;
+export type MediaLookup = (id: string, override?: { alt?: string; caption?: string; credit?: string }) => MediaAsset | null;
 
 const str = (value: unknown) => (typeof value === "string" ? value : "");
 
@@ -29,7 +42,15 @@ function inlines(nodes: DocNode[] | undefined): Inline[] {
       else if (mark.type === "underline") run.underline = true;
       else if (mark.type === "strike") run.strike = true;
       else if (mark.type === "code") run.code = true;
-      else if (mark.type === "link" && typeof mark.attrs?.href === "string") {
+      else if (mark.type === "textStyle") {
+        const color = normalizeTextColor(mark.attrs?.color);
+        const fontSize = normalizeFontSize(mark.attrs?.fontSize);
+        if (color) run.color = color;
+        if (fontSize) run.fontSize = fontSize;
+      } else if (mark.type === "highlight") {
+        const highlight = normalizeHighlightColor(mark.attrs?.color);
+        if (highlight) run.highlight = highlight;
+      } else if (mark.type === "link" && typeof mark.attrs?.href === "string") {
         run.href = mark.attrs.href;
         if (mark.attrs.target === "_blank") run.newTab = true;
       }
@@ -77,7 +98,8 @@ function block(node: DocNode, media: MediaLookup): ArticleBlock | null {
   switch (node.type) {
     case "paragraph": {
       const content = inlines(node.content);
-      return content.length ? { type: "paragraph", content } : null;
+      if (!content.length) return null;
+      return { type: "paragraph", content, ...(node.attrs?.dropCap === true ? { dropCap: true } : {}) };
     }
     case "heading": {
       const level = node.attrs?.level === 3 ? 3 : node.attrs?.level === 4 ? 4 : 2;
@@ -94,18 +116,48 @@ function block(node: DocNode, media: MediaLookup): ArticleBlock | null {
       const items = listItems(node);
       return items.length ? { type: "list", ordered: node.type === "orderedList", items } : null;
     }
-    case "horizontalRule":
-      return { type: "divider" };
+    case "horizontalRule": {
+      const variant = normalizeDividerVariant(node.attrs?.variant);
+      return variant !== "editorial" ? { type: "divider", variant } : { type: "divider" };
+    }
     case "table":
       return table(node);
     case NODE.image: {
-      const image = media(str(node.attrs?.mediaId), { alt: str(node.attrs?.alt), caption: str(node.attrs?.caption) });
-      return image ? { type: "image", image, size: node.attrs?.size === "wide" ? "wide" : "column" } : null;
+      const image = media(str(node.attrs?.mediaId), {
+        alt: str(node.attrs?.alt),
+        caption: str(node.attrs?.caption),
+        credit: str(node.attrs?.credit),
+      });
+      if (!image) return null;
+      const ratio = normalizeImageRatio(node.attrs?.ratio);
+      if (node.attrs?.layout === "pair" && str(node.attrs?.pairMediaId)) {
+        const second = media(str(node.attrs?.pairMediaId), {
+          alt: str(node.attrs?.pairAlt),
+          caption: str(node.attrs?.pairCaption),
+          credit: str(node.attrs?.pairCredit),
+        });
+        if (second) {
+          return {
+            type: "imagePair",
+            images: [image, second],
+            ...(ratio !== "auto" ? { ratio } : {}),
+          };
+        }
+      }
+      const size = normalizeImageSize(node.attrs?.size);
+      const align = normalizeImageAlign(node.attrs?.align);
+      return {
+        type: "image",
+        image,
+        size,
+        ...(size === "column" && align !== "center" ? { align } : {}),
+        ...(ratio !== "auto" ? { ratio } : {}),
+      };
     }
     case NODE.gallery: {
       const items = Array.isArray(node.attrs?.items) ? (node.attrs.items as Array<Record<string, unknown>>) : [];
       const images = items
-        .map((item) => media(str(item.mediaId), { alt: str(item.alt), caption: str(item.caption) }))
+        .map((item) => media(str(item.mediaId), { alt: str(item.alt), caption: str(item.caption), credit: str(item.credit) }))
         .filter((m): m is MediaAsset => m !== null);
       return images.length ? { type: "gallery", images, ...(str(node.attrs?.title) ? { title: str(node.attrs?.title) } : {}) } : null;
     }
@@ -121,12 +173,53 @@ function block(node: DocNode, media: MediaLookup): ArticleBlock | null {
         ...(str(node.attrs?.note) ? { note: str(node.attrs?.note) } : {}),
       };
     }
-    case NODE.pullQuote:
+    case NODE.pullQuote: {
+      const variant = normalizePullQuoteVariant(node.attrs?.variant);
       return {
         type: "pullQuote",
         text: str(node.attrs?.text),
         ...(str(node.attrs?.attribution) ? { attribution: str(node.attrs?.attribution) } : {}),
+        ...(variant !== "editorial" ? { variant } : {}),
       };
+    }
+    case NODE.largeStatement: {
+      const headline = str(node.attrs?.headline).trim();
+      if (!headline) return null;
+      const tone = normalizeLargeStatementTone(node.attrs?.tone);
+      return {
+        type: "largeStatement",
+        headline,
+        ...(str(node.attrs?.description).trim() ? { description: str(node.attrs?.description).trim() } : {}),
+        ...(str(node.attrs?.source).trim() ? { source: str(node.attrs?.source).trim() } : {}),
+        tone,
+      };
+    }
+    case NODE.factBox: {
+      const title = str(node.attrs?.title).trim();
+      const items = Array.isArray(node.attrs?.items)
+        ? node.attrs.items.map((x) => str(x).trim()).filter(Boolean)
+        : [];
+      if (!title && items.length === 0) return null;
+      return {
+        type: "factBox",
+        title: title || "Kotak Fakta",
+        items,
+        ...(str(node.attrs?.source).trim() ? { source: str(node.attrs?.source).trim() } : {}),
+        tone: normalizeFactBoxTone(node.attrs?.tone),
+      };
+    }
+    case NODE.callout: {
+      const body = str(node.attrs?.body).trim();
+      const title = str(node.attrs?.title).trim();
+      if (!body && !title) return null;
+      return {
+        type: "callout",
+        ...(str(node.attrs?.label).trim() ? { label: str(node.attrs?.label).trim() } : {}),
+        ...(title ? { title } : {}),
+        body,
+        tone: normalizeCalloutTone(node.attrs?.tone),
+      };
+    }
     case NODE.video:
       return {
         type: "video",

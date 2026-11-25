@@ -9,7 +9,7 @@ import type { MediaAsset } from "@/content/types";
  */
 export function MediaImage({
   media,
-  ratio = "16/9",
+  ratio = "16/10",
   sizes = '100vw',
   eager = false,
   rounded = true,

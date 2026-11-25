@@ -6,8 +6,8 @@ import { ArticleImage } from "./ArticleImage";
 export function ArticleGallery({ title, images, group = "galeri" }: { title?: string; images: MediaAsset[]; group?: string }) {
   if (images.length === 0) return null;
   return (
-    <figure className="my-10">
-      {title && <p className="font-display mb-3 text-[1.1875rem] font-bold text-ink md:text-[1.3125rem]">{title}</p>}
+    <figure className="clear-both my-10">
+      {title && <p className="font-serif mb-3 text-[1.1875rem] font-bold text-[#252525] md:text-[1.3125rem]">{title}</p>}
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3 max-md:[&>*:last-child:nth-child(even)]:col-span-2">
         {images.map((img, i) => (
           <ArticleImage

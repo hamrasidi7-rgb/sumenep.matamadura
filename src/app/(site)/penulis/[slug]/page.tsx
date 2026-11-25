@@ -2,13 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ArchiveView } from "@/components/article/ArchiveView";
-import { getAuthor, getAuthors, listArticles } from "@/lib/content";
+import { getAuthor, listAuthorArticles } from "@/lib/content";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ halaman?: string }> };
 
-export async function generateStaticParams() {
-  return (await getAuthors()).map((a) => ({ slug: a.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const author = await getAuthor((await params).slug);
@@ -25,8 +23,8 @@ export default async function PenulisPage({ params, searchParams }: Props) {
     <ArchiveView
       eyebrow="Penulis"
       title={author.name}
-      description={author.bio ?? author.role}
-      result={await listArticles({ author: slug, page })}
+      description={author.bio ? `${author.role} — ${author.bio}` : author.role}
+      result={await listAuthorArticles(slug, page)}
       basePath={`/penulis/${slug}`}
     />
   );

@@ -25,6 +25,9 @@ async function actor() {
 
 function revalidateAuthorConsumers() {
   refreshPublicArticles();
+  revalidatePath("/penulis/[slug]", "page");
+  revalidatePath("/artikel/[slug]", "page");
+  revalidatePath("/sitemap.xml");
   revalidatePath("/admin/penulis");
   revalidatePath("/admin/artikel");
   revalidatePath("/admin/artikel/baru");

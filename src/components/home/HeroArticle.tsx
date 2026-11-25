@@ -23,7 +23,7 @@ export function HeroArticle({ article }: { article: ArticleView }) {
         <Link href={href} tabIndex={-1} aria-hidden className="block">
           <MediaImage
             media={article.hero}
-            ratio="16/9"
+            ratio="16/10"
             eager
             rounded={false}
             className="w-full h-full object-cover md:rounded-[var(--radius-media)]"

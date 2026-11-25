@@ -1,6 +1,22 @@
+import { z } from "zod";
+
+import { clampFocal } from "@/lib/media-crop";
 import { jsonResponse, requireAdminApi } from "@/server/auth/api";
 import { getDb } from "@/server/db";
-import { MAX_UPLOAD_BYTES, MediaError, recentMedia, uploadImage } from "@/server/media/service";
+import {
+  cropExistingMediaToFeatured,
+  MAX_UPLOAD_BYTES,
+  MediaError,
+  recentMedia,
+  uploadImage,
+} from "@/server/media/service";
+
+const cropExistingSchema = z.object({
+  action: z.literal("crop-featured"),
+  sourceMediaId: z.uuid({ error: "ID gambar sumber tidak valid." }),
+  focalX: z.number().min(0).max(100).optional(),
+  focalY: z.number().min(0).max(100).optional(),
+});
 
 // Image upload for the article editor (featured image, body images, gallery,
 // infographic) and the list of recent uploads for the picker.
@@ -27,6 +43,32 @@ export async function POST(request: Request) {
   const guard = await requireAdminApi(request);
   if ("response" in guard) return guard.response;
 
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return jsonResponse({ error: "Kiriman JSON tidak valid." }, 400);
+    }
+    const parsed = cropExistingSchema.safeParse(payload);
+    if (!parsed.success) {
+      return jsonResponse({ error: parsed.error.issues[0]?.message ?? "Parameter crop tidak valid." }, 422);
+    }
+    try {
+      const result = await cropExistingMediaToFeatured(
+        getDb(),
+        parsed.data.sourceMediaId,
+        { focalX: parsed.data.focalX, focalY: parsed.data.focalY },
+        { adminId: guard.session.admin.id, ip: guard.ip, userAgent: guard.userAgent },
+      );
+      return jsonResponse(result, result.duplicate ? 200 : 201);
+    } catch (error) {
+      if (error instanceof MediaError) return jsonResponse({ error: error.message }, 422);
+      throw error;
+    }
+  }
+
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > MAX_UPLOAD_BYTES + 64 * 1024) return jsonResponse({ error: "Berkas lebih dari 15 MB." }, 413);
 
@@ -49,12 +91,17 @@ export async function POST(request: Request) {
   if (folderId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(folderId)) {
     return jsonResponse({ error: "Folder media tidak valid." }, 422);
   }
+  const preset = text("preset").trim() === "featured" ? "featured" : "default";
+  const focalX = clampFocal(text("focalX"));
+  const focalY = clampFocal(text("focalY"));
   try {
     const result = await uploadImage(
       getDb(),
       { name: file.name, bytes: Buffer.from(await file.arrayBuffer()) },
       { alt: text("alt"), caption: text("caption"), credit: text("credit"), folderId },
       { adminId: guard.session.admin.id, ip: guard.ip, userAgent: guard.userAgent },
+      undefined,
+      preset === "featured" ? { preset: "featured", focalX, focalY } : {},
     );
     return jsonResponse(result, result.duplicate ? 200 : 201);
   } catch (error) {

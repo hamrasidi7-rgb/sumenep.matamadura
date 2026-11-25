@@ -51,10 +51,10 @@ export function LatestArticles({ articles, rubrics }: { articles: ArticleView[];
                     </p>
                   </div>
                   {/* Image side */}
-                  <Link href={`/artikel/${a.slug}`} className="mt-4 md:mt-0 block w-32 flex-shrink-0" aria-hidden tabIndex={-1}>
+                  <Link href={`/artikel/${a.slug}`} className="mt-4 md:mt-0 block w-32 sm:w-40 md:w-44 flex-shrink-0" aria-hidden tabIndex={-1}>
                     <MediaImage
                       media={a.hero}
-                      ratio="5/4"
+                      ratio="16/10"
                       eager
                       className="object-cover w-full h-full"
                     />

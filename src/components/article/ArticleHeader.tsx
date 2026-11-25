@@ -49,17 +49,17 @@ export function ArticleHeader({ article, variant, sharePath }: { article: Articl
           </Link>
         )}
         <h1
-          className={`font-display mt-2 font-bold text-balance text-ink ${
+          className={`font-serif mt-2 font-bold text-balance text-[#252525] ${
             feature
-              ? "text-[clamp(1.875rem,8.4vw,2.25rem)] leading-[1.08] tracking-[-0.02em] md:text-[2.75rem] xl:text-[3.375rem]"
-              : "text-[clamp(1.875rem,8.2vw,2.25rem)] leading-[1.08] tracking-[-0.018em] md:text-[2.75rem] xl:text-[3.25rem]"
+              ? "text-[clamp(1.875rem,8vw,2.25rem)] leading-[1.12] tracking-[-0.015em] md:text-[2.625rem] xl:text-[3.375rem]"
+              : "text-[clamp(1.875rem,8vw,2.25rem)] leading-[1.12] tracking-[-0.015em] md:text-[2.625rem] xl:text-[3.25rem]"
           }`}
         >
           {article.title}
         </h1>
         <p
-          className={`font-display mt-3 text-[1.1875rem] leading-[1.45] text-muted md:mt-4 md:text-[1.375rem] xl:text-[1.5rem] ${
-            feature ? "mx-auto max-w-[44rem] italic" : ""
+          className={`font-serif mt-3 text-[1.125rem] leading-[1.5] font-normal text-[#4a4a4a] md:mt-4 md:text-[1.375rem] xl:text-[1.5rem] md:leading-[1.45] ${
+            feature ? "mx-auto max-w-[44rem]" : ""
           }`}
         >
           {article.standfirst}

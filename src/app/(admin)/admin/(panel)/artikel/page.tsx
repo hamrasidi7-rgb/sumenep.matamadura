@@ -49,7 +49,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   const db = getDb();
 
   // Jalankan berurutan agar total koneksi serentak tetap <= 4 pada pool MariaDB limit 5.
-  const options = await editorOptions(db);
+  const options = await editorOptions(db, { includeUsedAuthors: true });
   const { items, total, page, pages, perPage, counts } = await listArticles(db, {
     q: urlState.q,
     state: urlState.status,
@@ -171,9 +171,9 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   {a.heroSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={a.heroSrc} alt="" className="hidden h-14 w-20 shrink-0 rounded bg-warm object-cover sm:block" loading="lazy" />
+                    <img src={a.heroSrc} alt="" className="hidden aspect-[16/10] w-24 shrink-0 rounded bg-warm object-cover sm:block" loading="lazy" />
                   ) : (
-                    <span className="hidden h-14 w-20 shrink-0 rounded bg-warm sm:block" aria-hidden="true" />
+                    <span className="hidden aspect-[16/10] w-24 shrink-0 rounded bg-warm sm:block" aria-hidden="true" />
                   )}
                   <div className="min-w-0 flex-1">
                     <Link href={editHref} className="font-semibold text-ink break-words hover:text-brand">

@@ -24,13 +24,13 @@ export default async function EditArticlePage({
   const [{ id }, query] = await Promise.all([params, searchParams]);
   if (!UUID.test(id)) notFound();
   const db = getDb();
-  const [data, options, revisions, statusHistory] = await Promise.all([
-    articleForEditor(db, id),
-    editorOptions(db),
+  const data = await articleForEditor(db, id);
+  if (!data) notFound();
+  const [options, revisions, statusHistory] = await Promise.all([
+    editorOptions(db, { includeAuthorId: data.article.authorId }),
     revisionList(db, id),
     articleStatusHistory(db, id),
   ]);
-  if (!data) notFound();
   const backHref = articleListUrl(parseArticleListState(query));
   return (
     <main>

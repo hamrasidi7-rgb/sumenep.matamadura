@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
+import type { MediaUploadPreset } from "@/lib/media-crop";
 import type { MediaDto } from "@/server/media/service";
 
 import { MediaPicker } from "./MediaPicker";
@@ -12,6 +13,7 @@ import { MediaPicker } from "./MediaPicker";
 interface PickOptions {
   title?: string;
   multiple?: boolean;
+  preset?: MediaUploadPreset;
 }
 
 interface MediaContextValue {
@@ -54,7 +56,7 @@ export function MediaProvider({ initial, children }: { initial: Record<string, M
   return (
     <MediaContext.Provider value={value}>
       {children}
-      {request && <MediaPicker title={request.title} multiple={Boolean(request.multiple)} onDone={finish} />}
+      {request && <MediaPicker title={request.title} multiple={Boolean(request.multiple)} preset={request.preset} onDone={finish} />}
     </MediaContext.Provider>
   );
 }

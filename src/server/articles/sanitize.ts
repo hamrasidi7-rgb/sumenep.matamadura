@@ -13,6 +13,19 @@
 // block types to components), so this is the first of two layers.
 
 import { parseVideoUrl, safeHref } from "@/lib/article-utils";
+import {
+  normalizeCalloutTone,
+  normalizeDividerVariant,
+  normalizeFactBoxTone,
+  normalizeFontSize,
+  normalizeHighlightColor,
+  normalizeImageAlign,
+  normalizeImageRatio,
+  normalizeImageSize,
+  normalizeLargeStatementTone,
+  normalizePullQuoteVariant,
+  normalizeTextColor,
+} from "@/lib/editorial-tokens";
 
 import { NODE, type DocMark, type DocNode } from "@/lib/article-doc";
 
@@ -23,7 +36,7 @@ const MAX_DEPTH = 24;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const TABLE_PARTS = new Set(["tableRow", "tableHeader", "tableCell"]);
-const MARKS = new Set(["bold", "italic", "underline", "strike", "code", "link"]);
+const MARKS = new Set(["bold", "italic", "underline", "strike", "code", "link", "textStyle", "highlight"]);
 
 export class DocumentTooLargeError extends Error {
   constructor() {
@@ -45,6 +58,22 @@ function sanitizeMarks(marks: DocMark[] | undefined): DocMark[] {
   const out: DocMark[] = [];
   for (const mark of marks ?? []) {
     if (!mark || !MARKS.has(mark.type) || out.some((m) => m.type === mark.type)) continue;
+    if (mark.type === "textStyle") {
+      const color = normalizeTextColor(mark.attrs?.color);
+      const fontSize = normalizeFontSize(mark.attrs?.fontSize);
+      if (!color && !fontSize) continue;
+      out.push({
+        type: "textStyle",
+        attrs: { ...(color ? { color } : {}), ...(fontSize ? { fontSize } : {}) },
+      });
+      continue;
+    }
+    if (mark.type === "highlight") {
+      const color = normalizeHighlightColor(mark.attrs?.color);
+      if (!color) continue;
+      out.push({ type: "highlight", attrs: { color } });
+      continue;
+    }
     if (mark.type !== "link") {
       out.push({ type: mark.type });
       continue;
@@ -83,11 +112,18 @@ export function sanitizeDoc(input: unknown): DocNode {
       }
       case "hardBreak":
         return { type: "hardBreak" };
-      case "horizontalRule":
-        return { type: "horizontalRule" };
+      case "horizontalRule": {
+        const variant = normalizeDividerVariant(node.attrs?.variant);
+        return variant !== "editorial" ? { type: "horizontalRule", attrs: { variant } } : { type: "horizontalRule" };
+      }
       case "paragraph": {
         const content = children((c) => c.type === "text" || c.type === "hardBreak");
-        return { type: "paragraph", ...(content.length ? { content } : {}) };
+        const dropCap = node.attrs?.dropCap === true;
+        return {
+          type: "paragraph",
+          ...(dropCap ? { attrs: { dropCap: true } } : {}),
+          ...(content.length ? { content } : {}),
+        };
       }
       case "heading": {
         // H2–H4 only: the article title is the page's only H1.
@@ -127,13 +163,31 @@ export function sanitizeDoc(input: unknown): DocNode {
       case NODE.image: {
         const id = mediaId(node.attrs?.mediaId);
         if (!id) return null;
+        const size = normalizeImageSize(node.attrs?.size);
+        const credit = text(node.attrs?.credit, 200).trim();
+        const align = normalizeImageAlign(node.attrs?.align);
+        const ratio = normalizeImageRatio(node.attrs?.ratio);
+        const isPair = node.attrs?.layout === "pair";
+        const pairMediaId = isPair ? mediaId(node.attrs?.pairMediaId) : null;
         return {
           type: NODE.image,
           attrs: {
             mediaId: id,
             alt: text(node.attrs?.alt, MAX_SHORT),
             caption: text(node.attrs?.caption, MAX_SHORT),
-            size: node.attrs?.size === "wide" ? "wide" : "column",
+            ...(credit ? { credit } : {}),
+            size: isPair ? "column" : size,
+            ...(!isPair && size === "column" && align !== "center" ? { align } : {}),
+            ...(ratio !== "auto" ? { ratio } : {}),
+            ...(isPair ? { layout: "pair" } : {}),
+            ...(isPair && pairMediaId
+              ? {
+                  pairMediaId,
+                  pairAlt: text(node.attrs?.pairAlt, MAX_SHORT),
+                  pairCaption: text(node.attrs?.pairCaption, MAX_SHORT),
+                  ...(text(node.attrs?.pairCredit, 200).trim() ? { pairCredit: text(node.attrs?.pairCredit, 200).trim() } : {}),
+                }
+              : {}),
           },
         };
       }
@@ -143,7 +197,14 @@ export function sanitizeDoc(input: unknown): DocNode {
           .map((item: unknown) => {
             const record = (item ?? {}) as Record<string, unknown>;
             const id = mediaId(record.mediaId);
-            return id ? { mediaId: id, alt: text(record.alt, MAX_SHORT), caption: text(record.caption, MAX_SHORT) } : null;
+            if (!id) return null;
+            const credit = text(record.credit, 200).trim();
+            return {
+              mediaId: id,
+              alt: text(record.alt, MAX_SHORT),
+              caption: text(record.caption, MAX_SHORT),
+              ...(credit ? { credit } : {}),
+            };
           })
           .filter(Boolean);
         return items.length ? { type: NODE.gallery, attrs: { title: text(node.attrs?.title, 200), items } } : null;
@@ -165,7 +226,60 @@ export function sanitizeDoc(input: unknown): DocNode {
       }
       case NODE.pullQuote: {
         const quote = text(node.attrs?.text, 600).trim();
-        return quote ? { type: NODE.pullQuote, attrs: { text: quote, attribution: text(node.attrs?.attribution, 200) } } : null;
+        if (!quote) return null;
+        const variant = normalizePullQuoteVariant(node.attrs?.variant);
+        return {
+          type: NODE.pullQuote,
+          attrs: {
+            text: quote,
+            attribution: text(node.attrs?.attribution, 200),
+            ...(variant !== "editorial" ? { variant } : {}),
+          },
+        };
+      }
+      case NODE.largeStatement: {
+        const headline = text(node.attrs?.headline, 120).trim();
+        if (!headline) return null;
+        return {
+          type: NODE.largeStatement,
+          attrs: {
+            headline,
+            description: text(node.attrs?.description, 400).trim(),
+            source: text(node.attrs?.source, 200).trim(),
+            tone: normalizeLargeStatementTone(node.attrs?.tone),
+          },
+        };
+      }
+      case NODE.factBox: {
+        const title = text(node.attrs?.title, 200).trim();
+        const items = (Array.isArray(node.attrs?.items) ? node.attrs.items : [])
+          .slice(0, 12)
+          .map((item) => text(item, 300).trim())
+          .filter(Boolean);
+        if (!title && items.length === 0) return null;
+        return {
+          type: NODE.factBox,
+          attrs: {
+            title: title || "Kotak Fakta",
+            items,
+            source: text(node.attrs?.source, 200).trim(),
+            tone: normalizeFactBoxTone(node.attrs?.tone),
+          },
+        };
+      }
+      case NODE.callout: {
+        const title = text(node.attrs?.title, 200).trim();
+        const body = text(node.attrs?.body, 1500).trim();
+        if (!title && !body) return null;
+        return {
+          type: NODE.callout,
+          attrs: {
+            label: text(node.attrs?.label, 80).trim(),
+            title,
+            body,
+            tone: normalizeCalloutTone(node.attrs?.tone),
+          },
+        };
       }
       case NODE.video: {
         // Only YouTube / Vimeo, identified by a validated id — never a URL or HTML.

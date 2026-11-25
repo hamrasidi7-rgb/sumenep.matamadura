@@ -7,6 +7,7 @@ import {
   CircleAlert,
   CircleCheck,
   CloudOff,
+  Crop,
   Eye,
   ImageIcon,
   Loader2,
@@ -30,9 +31,11 @@ import {
   updateMediaMetaAction,
 } from "@/app/(admin)/admin/(panel)/artikel/actions";
 import { articleStatusLabel, formatWib } from "@/components/admin/format";
+import { FocalPointPicker } from "@/components/admin/media/FocalPointPicker";
 import { Notice } from "@/components/admin/Notice";
 import { WordCounter } from "@/components/admin/WordCounter";
 import { EMPTY_DOC, type DocNode } from "@/lib/article-doc";
+import { assessFeaturedImage, FEATURED_IMAGE_LABEL } from "@/lib/media-crop";
 import { slugify } from "@/lib/article-slug";
 import { analyzeBody, type SeoField } from "@/lib/seo-engine";
 import { buildSeoPreview, estimateReadingMinutes, SITE_PUBLIC_HOST } from "@/lib/seo-preview";
@@ -496,7 +499,8 @@ function Editor(props: EditorProps) {
       }),
     [fields.title, fields.slug, fields.standfirst, fields.seoTitle, fields.seoDescription, fields.canonicalUrl, hero, og],
   );
-  const selectedAuthor = props.options.authors.find((a) => a.id === fields.authorId)?.name ?? "Belum dipilih";
+  const rawAuthorName = props.options.authors.find((a) => a.id === fields.authorId)?.name ?? "Belum dipilih";
+  const selectedAuthor = rawAuthorName.replace(/\s+\(nonaktif\)$/, "");
   const selectedKanal = props.options.kanal.find((k) => k.id === fields.kanalId)?.name ?? "Belum dipilih";
   const seoInput = useMemo(
     () => ({
@@ -525,7 +529,22 @@ function Editor(props: EditorProps) {
           <SaveIndicator save={save} />
           <div className="ml-auto flex items-center gap-2">
             {articleId && (
-              <a href={`/pratinjau/${articleId}`} target="_blank" rel="noopener" className="admin-button-quiet min-h-10 px-3" onClick={() => void ensureSaved()}>
+              <a
+                href={`/pratinjau/${articleId}`}
+                target="_blank"
+                rel="noopener"
+                className="admin-button-quiet min-h-10 px-3"
+                onClick={(e) => {
+                  if (dirty && !live) {
+                    e.preventDefault();
+                    void ensureSaved().then((ok) => {
+                      if (ok && latest.current.articleId) {
+                        window.open(`/pratinjau/${latest.current.articleId}`, "_blank", "noopener");
+                      }
+                    });
+                  }
+                }}
+              >
                 <Eye className="size-4" aria-hidden /> <span className="hidden sm:inline">Pratinjau</span>
               </a>
             )}
@@ -578,7 +597,7 @@ function Editor(props: EditorProps) {
           <div className="min-w-0 space-y-5">
             <div>
               <label htmlFor="judul" className="sr-only">Judul</label>
-              <textarea id="judul" value={fields.title} onChange={(e) => update({ title: e.target.value.replace(/\n/g, " ") })} placeholder="Judul artikel" rows={2} maxLength={200} disabled={trashed} className="font-display w-full resize-none border-0 bg-transparent text-[1.75rem] leading-tight font-semibold outline-none placeholder:text-muted/60 md:text-[2.125rem]" />
+              <textarea id="judul" value={fields.title} onChange={(e) => update({ title: e.target.value.replace(/\n/g, " ") })} placeholder="Judul artikel" rows={2} maxLength={200} disabled={trashed} className="font-serif w-full resize-none border-0 bg-transparent text-[1.75rem] leading-[1.15] font-bold text-[#252525] outline-none placeholder:text-muted/60 md:text-[2.25rem]" />
               {err("title")}
               <div className="mt-1 flex flex-wrap items-center gap-x-1 text-sm text-muted">
                 <label htmlFor="slug">{SITE_PUBLIC_HOST}/artikel/</label>
@@ -606,7 +625,7 @@ function Editor(props: EditorProps) {
 
             <div>
               <label htmlFor="lead" className="admin-label">Lead (standfirst)</label>
-              <textarea id="lead" value={fields.standfirst} onChange={(e) => update({ standfirst: e.target.value })} rows={3} maxLength={600} disabled={trashed} className="admin-input mt-1.5 py-2" placeholder="Satu-dua kalimat inti tulisan" />
+              <textarea id="lead" value={fields.standfirst} onChange={(e) => update({ standfirst: e.target.value })} rows={3} maxLength={600} disabled={trashed} className="admin-input mt-1.5 py-2 font-serif text-[1.0625rem] leading-[1.5] text-[#252525] md:text-[1.125rem]" placeholder="Satu-dua kalimat inti tulisan" />
               <WordCounter text={fields.standfirst} recommendedMin={12} recommendedContext="untuk lead artikel" />
               {err("standfirst")}
             </div>
@@ -705,6 +724,14 @@ function Editor(props: EditorProps) {
               </fieldset>
               <Select id="penulis" label="Penulis" value={fields.authorId} onChange={(authorId) => update({ authorId })} options={props.options.authors} disabled={trashed} required />
               {err("authorId")}
+              {!trashed && (
+                <p className="admin-help -mt-1.5">
+                  Tampil di artikel, kotak Author Box, dan arsip penulis.{" "}
+                  <Link href="/admin/penulis" className="font-semibold text-brand hover:underline">
+                    Kelola penulis
+                  </Link>
+                </p>
+              )}
               <Select id="kanal" label="Kanal" value={fields.kanalId} onChange={(kanalId) => update({ kanalId })} options={props.options.kanal} disabled={trashed} />
               {err("kanalId")}
               <Select id="rubrik" label="Rubrik (opsional)" value={fields.rubrikId} onChange={(rubrikId) => update({ rubrikId })} options={props.options.rubrik} disabled={trashed} />
@@ -895,15 +922,57 @@ function HeroPanel({ heroId, onChange, disabled, error }: { heroId: string; onCh
   const hero = heroId ? media[heroId] : undefined;
   const [meta, setMeta] = useState({ alt: hero?.alt ?? "", caption: hero?.caption ?? "", credit: hero?.credit ?? "" });
   const [state, setState] = useState<"" | "saving" | "saved" | "error">("");
+  const [cropping, setCropping] = useState(false);
+  const [cropBusy, setCropBusy] = useState(false);
+  const [cropFeedback, setCropFeedback] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [focal, setFocal] = useState({ focalX: 50, focalY: 50 });
 
   useEffect(() => {
     setMeta({ alt: hero?.alt ?? "", caption: hero?.caption ?? "", credit: hero?.credit ?? "" });
+    setCropping(false);
+    setFocal({ focalX: 50, focalY: 50 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heroId]);
 
   async function choose() {
-    const chosen = await pick({ title: "Pilih gambar utama" });
+    setCropFeedback(null);
+    const chosen = await pick({ title: "Pilih gambar utama", preset: "featured" });
     if (chosen) onChange(chosen[0].id);
+  }
+
+  async function applyFeaturedCrop() {
+    if (!hero || cropBusy || disabled) return;
+    setCropBusy(true);
+    setCropFeedback(null);
+    try {
+      const res = await fetch("/api/admin/media", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "crop-featured",
+          sourceMediaId: hero.id,
+          focalX: focal.focalX,
+          focalY: focal.focalY,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setCropFeedback({ tone: "error", text: body.error ?? "Gagal menerapkan crop 1200 × 750." });
+        return;
+      }
+      const nextMedia = body.media as MediaDto;
+      remember([nextMedia]);
+      onChange(nextMedia.id);
+      setCropping(false);
+      setCropFeedback({
+        tone: "ok",
+        text: `Crop ${nextMedia.width} × ${nextMedia.height} px (fokus ${focal.focalX}% × ${focal.focalY}%) diterapkan.`,
+      });
+    } catch {
+      setCropFeedback({ tone: "error", text: "Gagal menghubungi server saat memproses crop." });
+    } finally {
+      setCropBusy(false);
+    }
   }
 
   async function saveMeta() {
@@ -920,19 +989,116 @@ function HeroPanel({ heroId, onChange, disabled, error }: { heroId: string; onCh
     }
   }
 
+  const assessment = hero ? assessFeaturedImage(hero.width, hero.height) : null;
+
   return (
     <div className="space-y-3">
       {hero ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={hero.src} alt={hero.alt} className="aspect-video w-full rounded-md bg-warm object-cover" />
+        cropping ? (
+          <div className="space-y-2.5 rounded-md border border-line bg-warm/40 p-2.5">
+            <FocalPointPicker
+              src={hero.src}
+              alt={hero.alt}
+              focalX={focal.focalX}
+              focalY={focal.focalY}
+              onChange={setFocal}
+              disabled={cropBusy || disabled}
+              naturalSize={{ width: hero.width, height: hero.height }}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="admin-button min-h-9 flex-1 px-3 text-xs"
+                onClick={() => void applyFeaturedCrop()}
+                disabled={cropBusy || disabled}
+              >
+                {cropBusy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Crop className="size-3.5" aria-hidden />}
+                {cropBusy ? "Memproses crop…" : "Simpan crop 1200 × 750"}
+              </button>
+              <button
+                type="button"
+                className="admin-button-quiet min-h-9 px-3 text-xs"
+                onClick={() => setCropping(false)}
+                disabled={cropBusy}
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={hero.src} alt={hero.alt} className="aspect-[16/10] w-full rounded-md bg-warm object-cover" />
+        )
       ) : (
-        <div className="flex aspect-video w-full items-center justify-center rounded-md border border-dashed border-line bg-warm text-sm text-muted">
-          <ImageIcon className="mr-1.5 size-4" aria-hidden /> Belum dipilih
+        <div className="flex aspect-[16/10] w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-line bg-warm px-3 text-center text-sm text-muted">
+          <span className="inline-flex items-center">
+            <ImageIcon className="mr-1.5 size-4" aria-hidden /> Belum dipilih
+          </span>
+          <span className="text-xs">Rekomendasi {FEATURED_IMAGE_LABEL}</span>
         </div>
       )}
-      <button id="gambar-utama" type="button" className="admin-button-quiet w-full" onClick={choose} disabled={disabled}>
-        {hero ? "Ganti gambar utama" : "Pilih gambar utama"}
-      </button>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button id="gambar-utama" type="button" className="admin-button-quiet min-h-10 flex-1" onClick={choose} disabled={disabled || cropBusy}>
+          {hero ? "Ganti gambar utama" : "Pilih gambar utama"}
+        </button>
+        {hero && !cropping && !disabled && (
+          <button
+            type="button"
+            className="admin-button-quiet min-h-10 px-2.5 text-xs"
+            onClick={() => {
+              setCropFeedback(null);
+              setCropping(true);
+            }}
+            title="Atur titik fokus & crop 1200 × 750 (16:10)"
+          >
+            <Crop className="size-3.5" aria-hidden /> Crop 16:10
+          </button>
+        )}
+      </div>
+
+      <p className="text-xs text-muted">
+        Rekomendasi: <strong className="font-semibold text-ink">{FEATURED_IMAGE_LABEL}</strong>
+        {hero && (
+          <>
+            {" · "}
+            <span className="tabular-nums">Saat ini {hero.width} × {hero.height} px</span>
+          </>
+        )}
+        {hero && !disabled && (
+          <>
+            {" · "}
+            <button
+              type="button"
+              onClick={() => {
+                setCropFeedback(null);
+                onChange("");
+              }}
+              className="font-semibold text-brand hover:underline"
+            >
+              Lepas
+            </button>
+          </>
+        )}
+      </p>
+
+      {assessment && assessment.status !== "optimal" && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
+          {assessment.summary}
+        </p>
+      )}
+      {cropFeedback && (
+        <p
+          role={cropFeedback.tone === "error" ? "alert" : "status"}
+          className={`rounded-md px-2.5 py-2 text-xs ${
+            cropFeedback.tone === "error"
+              ? "border border-brand/30 bg-blush text-brand-deep"
+              : "border border-emerald-200 bg-emerald-50 text-emerald-900"
+          }`}
+        >
+          {cropFeedback.text}
+        </p>
+      )}
       {error && <p className="admin-error" role="alert">{error}</p>}
       {hero && (
         <fieldset className="space-y-2" disabled={disabled} onBlur={saveMeta}>

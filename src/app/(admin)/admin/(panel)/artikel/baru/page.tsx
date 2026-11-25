@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { ArticleEditor } from "@/components/admin/articles/ArticleEditor";
 import { Notice } from "@/components/admin/Notice";
@@ -17,7 +18,10 @@ export default async function NewArticlePage() {
   if (options.authors.length === 0) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-10">
-        <Notice tone="error">Belum ada profil penulis. Jalankan <code>npm run db:seed</code> (penulis &ldquo;Redaksi&rdquo;) atau tambahkan penulis di Fase 5.</Notice>
+        <Notice tone="error">
+          Belum ada profil penulis aktif. Jalankan <code>npm run db:seed</code> atau tambahkan penulis melalui{" "}
+          <Link href="/admin/penulis" className="font-semibold underline">Kelola Penulis</Link>.
+        </Notice>
       </main>
     );
   }

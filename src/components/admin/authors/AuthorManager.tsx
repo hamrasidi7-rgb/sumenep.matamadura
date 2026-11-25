@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ImageIcon, Loader2, Pencil, Plus, Trash2, UserCheck, UserMinus } from "lucide-react";
+import { CheckCircle2, ExternalLink, ImageIcon, Loader2, Pencil, Plus, Trash2, UserCheck, UserMinus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -156,6 +156,16 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
                   </div>
 
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {(a.isActive || a.articleCount > 0) && (
+                      <a
+                        href={`/penulis/${a.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-8 items-center gap-1 rounded-md border border-line bg-paper px-2.5 text-xs font-semibold text-ink hover:border-ink/40 hover:bg-warm"
+                      >
+                        <ExternalLink className="size-3" aria-hidden="true" /> Profil
+                      </a>
+                    )}
                     <button
                       type="button"
                       disabled={pending}
@@ -263,14 +273,14 @@ export function AuthorManager({ authors }: { authors: AuthorAdminRow[] }) {
             </div>
 
             <div>
-              <label htmlFor="author-role" className="admin-label">Peran / Jabatan Redaksi</label>
+              <label htmlFor="author-role" className="admin-label">Jabatan / Profesi</label>
               <input
                 id="author-role"
                 type="text"
                 maxLength={200}
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                placeholder="mis. Redaksi, Reporter Kepulauan"
+                placeholder="mis. Tim Redaksi, Wartawan Kepulauan"
                 disabled={pending}
                 className="admin-input mt-1.5"
               />

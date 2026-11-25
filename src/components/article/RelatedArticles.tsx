@@ -20,7 +20,7 @@ export function RelatedArticles({ articles }: { articles: ArticleView[] }) {
             return (
               <li key={a.slug} className="grid grid-cols-[34%_1fr] items-start gap-3.5 md:block">
                 <Link href={href} tabIndex={-1} aria-hidden className="block">
-                  <MediaImage media={a.hero} ratio="3/2" sizes="(min-width: 768px) 300px, 34vw" />
+                  <MediaImage media={a.hero} ratio="16/10" sizes="(min-width: 768px) 300px, 34vw" />
                 </Link>
                 <div className="min-w-0 md:mt-3">
                   {a.section && (

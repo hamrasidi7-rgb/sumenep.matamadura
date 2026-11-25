@@ -4,7 +4,14 @@ import { ARTICLES, AUTHORS, HOMEPAGE } from "@/content/seed";
 import { SECTIONS } from "@/content/sections";
 import type { Article, Author, EditorialNote, Section, SectionKind } from "@/content/types";
 import { withHeadingIds } from "@/lib/article-utils";
+import { DEFAULT_AUTHOR, resolvePublicAuthor } from "@/lib/author";
 import { cachedPublicArticle, cachedRedirectTarget, cachedRelated } from "@/server/articles/public";
+import {
+  cachedPublicArticlesByAuthor,
+  cachedPublicAuthor,
+  cachedPublicAuthors,
+} from "@/server/authors/public";
+import { configuredDatabaseParts } from "@/server/db/url";
 
 // Content adapter. Today it reads the demo seed; in Tahap 5 each function is
 // re-implemented on top of the Payload Local API with the same signatures.
@@ -27,7 +34,7 @@ export type ArticleView = Omit<Article, "author"> & {
   section?: Section;
 };
 
-const FALLBACK_AUTHOR: Author = { slug: "redaksi", name: "Redaksi", role: "Redaksi" };
+const FALLBACK_AUTHOR: Author = DEFAULT_AUTHOR;
 
 function toView(a: Article): ArticleView {
   const kind: SectionKind = a.rubrik ? "rubrik" : "kanal";
@@ -69,11 +76,65 @@ export async function getSection(kind: SectionKind, slug: string): Promise<Secti
 }
 
 export async function getAuthor(slug: string): Promise<Author | null> {
-  return AUTHORS.find((a) => a.slug === slug) ?? null;
+  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
+    const fromCms = await cachedPublicAuthor(slug);
+    if (fromCms) return fromCms;
+  }
+  const seed = AUTHORS.find((a) => a.slug === slug);
+  return seed ? resolvePublicAuthor(seed) : null;
 }
 
 export async function getAuthors(): Promise<Author[]> {
-  return AUTHORS;
+  const bySlug = new Map<string, Author>();
+  for (const author of AUTHORS) {
+    bySlug.set(author.slug, resolvePublicAuthor(author));
+  }
+  if (CMS_ARTICLES && configuredDatabaseParts(process.env)) {
+    const fromCms = await cachedPublicAuthors();
+    for (const author of fromCms) {
+      bySlug.set(author.slug, author);
+    }
+  }
+  return [...bySlug.values()];
+}
+
+const AUTHOR_ARCHIVE_PAGE_SIZE = 12;
+
+export async function listAuthorArticles(slug: string, page = 1): Promise<Paginated<ArticleView>> {
+  const safeRequestedPage = Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1;
+  if (!(CMS_ARTICLES && configuredDatabaseParts(process.env))) {
+    return listArticles({ author: slug, page: safeRequestedPage });
+  }
+
+  const cmsItems = await cachedPublicArticlesByAuthor(slug);
+  const seenSlugs = new Set(cmsItems.map((item) => item.slug));
+
+  const seedItems: ArticleView[] = [];
+  const firstSeedPage = await listArticles({ author: slug, page: 1 });
+  for (const item of firstSeedPage.items) {
+    if (!seenSlugs.has(item.slug)) seedItems.push(item);
+  }
+  for (let p = 2; p <= firstSeedPage.totalPages; p += 1) {
+    const nextSeedPage = await listArticles({ author: slug, page: p });
+    for (const item of nextSeedPage.items) {
+      if (!seenSlugs.has(item.slug)) seedItems.push(item);
+    }
+  }
+
+  const combined = [...cmsItems, ...seedItems].sort(
+    (a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt),
+  );
+  const total = combined.length;
+  const totalPages = Math.max(1, Math.ceil(total / AUTHOR_ARCHIVE_PAGE_SIZE));
+  const currentPage = Math.min(safeRequestedPage, totalPages);
+  const offset = (currentPage - 1) * AUTHOR_ARCHIVE_PAGE_SIZE;
+
+  return {
+    items: combined.slice(offset, offset + AUTHOR_ARCHIVE_PAGE_SIZE),
+    page: currentPage,
+    totalPages,
+    total,
+  };
 }
 
 export async function getArticle(slug: string): Promise<ArticleView | null> {

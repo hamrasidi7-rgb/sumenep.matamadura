@@ -14,6 +14,7 @@
   --color-blush: #f8efec;
 
   --font-display: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
+  --font-serif: var(--font-lora), Georgia, serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 }
 
@@ -70,38 +71,57 @@
   }
 }
 
-/* The editable article body (TipTap/ProseMirror). Close to the public
-   typography, so the Admin sees roughly what readers will see. */
+/* The editable article body (TipTap/ProseMirror). Uses Lora matching the
+   public Nieman-inspired editorial layout so writers compose in real typography. */
 .cms-prose {
-  min-height: 18rem;
-  padding: 1rem 1rem 4rem;
-  font-family: var(--font-display);
-  font-size: 1.125rem;
-  line-height: 1.7;
-  color: var(--color-ink);
+  min-height: 20rem;
+  padding: 1.25rem 1rem 4rem;
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  line-height: 1.62;
+  color: #252525;
   outline: none;
-  overflow-wrap: break-word; /* long links and words wrap instead of widening the page */
+  overflow-wrap: break-word;
 }
 @media (min-width: 48rem) {
   .cms-prose {
-    padding: 1.25rem 1.75rem 5rem;
+    padding: 1.5rem 2rem 5rem;
+    font-size: 1.1875rem;
+    line-height: 1.65;
   }
 }
 .cms-prose > * + * {
-  margin-top: 0.85em;
+  margin-top: 0.9em;
+}
+.cms-prose p[data-drop-cap="true"]::first-letter {
+  font-family: var(--font-serif);
+  float: left;
+  margin-top: 0.06em;
+  margin-right: 0.24em;
+  font-size: 3.65em;
+  line-height: 0.82;
+  font-weight: 700;
+  color: #a61b2b;
+}
+.cms-prose mark {
+  border-radius: 2px;
+  padding: 0.04em 0.18em;
+  color: #252525;
 }
 .cms-prose h2,
 .cms-prose h3,
 .cms-prose h4 {
+  font-family: var(--font-serif);
   font-weight: 700;
   line-height: 1.25;
+  color: #252525;
   margin-top: 1.4em;
 }
 .cms-prose h2 {
-  font-size: 1.5rem;
+  font-size: 1.5625rem;
 }
 .cms-prose h3 {
-  font-size: 1.25rem;
+  font-size: 1.28125rem;
 }
 .cms-prose h4 {
   font-size: 1.0625rem;
@@ -136,9 +156,29 @@
 }
 .cms-prose hr {
   border: 0;
-  border-top: 2px solid color-mix(in srgb, var(--color-brand) 40%, transparent);
+  border-top: 2px solid color-mix(in srgb, var(--color-brand) 65%, transparent);
   width: 6rem;
   margin: 2rem auto;
+}
+.cms-prose hr[data-variant="subtle"] {
+  width: 100%;
+  border-top: 1px solid #dedad4;
+}
+.cms-prose hr[data-variant="dots"] {
+  width: 100%;
+  height: 1.5rem;
+  border-top: 0;
+  position: relative;
+}
+.cms-prose hr[data-variant="dots"]::after {
+  content: "•••";
+  position: absolute;
+  inset: 0;
+  text-align: center;
+  color: #a61b2b;
+  letter-spacing: 0.65em;
+  font-size: 1.125rem;
+  line-height: 1.5rem;
 }
 .cms-prose table {
   width: 100%;

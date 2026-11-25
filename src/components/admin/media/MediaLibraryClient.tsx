@@ -23,7 +23,9 @@ import {
   updateMediaMetaAction,
 } from "@/app/(admin)/admin/(panel)/media/actions";
 import { formatBytes, formatWib } from "@/components/admin/format";
+import { FocalPointPicker } from "@/components/admin/media/FocalPointPicker";
 import { Notice } from "@/components/admin/Notice";
+import { FEATURED_IMAGE_LABEL } from "@/lib/media-crop";
 import type {
   MediaFolderSummary,
   MediaLibraryData,
@@ -64,6 +66,10 @@ export function MediaLibraryClient({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
+  const [uploadNaturalSize, setUploadNaturalSize] = useState<{ width: number; height: number } | null>(null);
+  const [uploadCropFeatured, setUploadCropFeatured] = useState(false);
+  const [uploadFocal, setUploadFocal] = useState({ focalX: 50, focalY: 50 });
   const [uploadMeta, setUploadMeta] = useState({
     alt: "",
     caption: "",
@@ -73,6 +79,29 @@ export function MediaLibraryClient({
         ? data.query.folder
         : "",
   });
+
+  useEffect(() => {
+    return () => {
+      if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
+    };
+  }, [uploadPreviewUrl]);
+
+  function handleUploadFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
+    if (!file) {
+      setUploadPreviewUrl(null);
+      setUploadNaturalSize(null);
+      return;
+    }
+    const nextUrl = URL.createObjectURL(file);
+    setUploadPreviewUrl(nextUrl);
+    setUploadFocal({ focalX: 50, focalY: 50 });
+    const img = new Image();
+    img.onload = () => setUploadNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => setUploadNaturalSize(null);
+    img.src = nextUrl;
+  }
 
   // Editor metadata item terpilih
   const selectedItem: MediaLibraryItem | null =
@@ -145,6 +174,11 @@ export function MediaLibraryClient({
       form.append("caption", uploadMeta.caption.trim());
       form.append("credit", uploadMeta.credit.trim());
       if (uploadMeta.folderId) form.append("folderId", uploadMeta.folderId);
+      if (uploadCropFeatured) {
+        form.append("preset", "featured");
+        form.append("focalX", String(uploadFocal.focalX));
+        form.append("focalY", String(uploadFocal.focalY));
+      }
 
       const res = await fetch("/api/admin/media", { method: "POST", body: form });
       const body = await res.json();
@@ -155,6 +189,11 @@ export function MediaLibraryClient({
 
       const media = body.media as MediaLibraryItem;
       setUploadMeta((prev) => ({ ...prev, alt: "", caption: "", credit: "" }));
+      if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
+      setUploadPreviewUrl(null);
+      setUploadNaturalSize(null);
+      setUploadCropFeatured(false);
+      setUploadFocal({ focalX: 50, focalY: 50 });
       if (fileRef.current) fileRef.current.value = "";
       setUploadOpen(false);
       setSelectedId(media.id);
@@ -371,10 +410,47 @@ export function MediaLibraryClient({
                   ref={fileRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+                  onChange={handleUploadFileChange}
                   className="mt-1.5 block w-full text-sm"
                   required
                 />
               </label>
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={uploadCropFeatured}
+                  onChange={(e) => setUploadCropFeatured(e.target.checked)}
+                  disabled={uploading}
+                />
+                <span>Optimalkan untuk gambar utama {FEATURED_IMAGE_LABEL} (crop titik fokus)</span>
+              </label>
+              {uploadPreviewUrl && (
+                <div className="sm:col-span-2">
+                  {uploadCropFeatured ? (
+                    <FocalPointPicker
+                      src={uploadPreviewUrl}
+                      alt={uploadMeta.alt || "Pratinjau gambar utama"}
+                      focalX={uploadFocal.focalX}
+                      focalY={uploadFocal.focalY}
+                      onChange={setUploadFocal}
+                      disabled={uploading}
+                      naturalSize={uploadNaturalSize}
+                    />
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="overflow-hidden rounded-md border border-line bg-paper">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={uploadPreviewUrl} alt={uploadMeta.alt || "Pratinjau unggahan"} className="max-h-56 w-full object-contain" />
+                      </div>
+                      {uploadNaturalSize && (
+                        <p className="text-xs text-muted tabular-nums">
+                          Ukuran asli: {uploadNaturalSize.width} × {uploadNaturalSize.height} px · Rekomendasi gambar utama: {FEATURED_IMAGE_LABEL}.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               <label className="block text-sm font-semibold">
                 Teks alternatif (alt) <span className="text-brand">*</span>
                 <input

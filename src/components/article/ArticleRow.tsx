@@ -22,13 +22,12 @@ export function ArticleRow({
   const href = `/artikel/${a.slug}`;
   const H = headingLevel === 2 ? "h2" : "h3";
   return (
-    <article className="grid grid-cols-[1fr_6.25rem] items-start gap-4 md:grid-cols-[16rem_1fr] md:gap-7 xl:grid-cols-[17.5rem_1fr]">
+    <article className="grid grid-cols-[1fr_7.5rem] items-start gap-3.5 sm:gap-4 md:grid-cols-[16rem_1fr] md:gap-7 xl:grid-cols-[17.5rem_1fr]">
       <Link href={href} tabIndex={-1} aria-hidden className="order-2 block md:order-1">
         <MediaImage
           media={a.hero}
-          ratio="3/2"
-          sizes="(min-width: 1280px) 280px, (min-width: 768px) 256px, 100px"
-          className="max-md:aspect-square!"
+          ratio="16/10"
+          sizes="(min-width: 1280px) 280px, (min-width: 768px) 256px, 120px"
         />
       </Link>
       <div className="order-1 min-w-0 md:order-2">

@@ -26,7 +26,7 @@ export function FeaturedArticles({ articles }: { articles: ArticleView[] }) {
               <Link href={href} className="block" aria-hidden tabIndex={-1}>
                 <MediaImage
                   media={a.hero}
-                  ratio="16/9"
+                  ratio="16/10"
                   eager
                   className="object-cover w-full h-full"
                 />

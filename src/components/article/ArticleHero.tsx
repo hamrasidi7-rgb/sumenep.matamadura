@@ -14,7 +14,7 @@ export function ArticleHero({ article, variant }: { article: ArticleView; varian
       <div className={`mx-auto ${variant === "wide" ? "max-w-[70rem]" : "max-w-[62rem]"}`}>
         <ArticleImage
           image={article.hero}
-          ratio="16/9"
+          ratio="16/10"
           eager
           sizes={variant === "wide" ? "(min-width: 1280px) 1120px, 100vw" : "(min-width: 1024px) 992px, 100vw"}
           captionClassName={variant === "wide" ? "mx-auto max-w-[45rem] text-center" : "mx-auto max-w-[47.5rem]"}
@@ -65,10 +65,10 @@ export function SpotlightHero({ article }: { article: ArticleView }) {
                 {article.section.name}
               </Link>
             )}
-            <h1 className="font-display mt-3 text-[clamp(1.875rem,8.6vw,2.25rem)] leading-[1.06] font-bold tracking-[-0.02em] text-balance text-white md:text-[2.75rem] xl:text-[3.5rem]">
+            <h1 className="font-serif mt-3 text-[clamp(1.875rem,8vw,2.25rem)] leading-[1.1] font-bold tracking-[-0.015em] text-balance text-white md:text-[2.625rem] xl:text-[3.375rem]">
               {article.title}
             </h1>
-            <p className="font-display mt-3 max-w-[44rem] text-[1.1875rem] leading-[1.42] text-white/90 md:mt-4 md:text-[1.375rem] xl:text-[1.625rem]">
+            <p className="font-serif mt-3 max-w-[44rem] text-[1.125rem] leading-[1.5] font-normal text-white/90 md:mt-4 md:text-[1.375rem] xl:text-[1.5rem] md:leading-[1.45]">
               {article.standfirst}
             </p>
           </div>

@@ -15,7 +15,7 @@ export function ArticleTable({
 }) {
   const wide = header.length >= 4;
   return (
-    <figure className="my-9">
+    <figure className="clear-both my-9">
       <div
         className="overflow-x-auto rounded-lg border border-line"
         role="region"
@@ -27,7 +27,7 @@ export function ArticleTable({
           style={wide ? { minWidth: `${header.length * 9}rem` } : undefined}
         >
           {caption && (
-            <caption className="font-display border-b border-line bg-warm px-4 py-3 text-left text-[1.0625rem] font-bold text-ink">
+            <caption className="font-serif border-b border-line bg-warm px-4 py-3 text-left text-[1.0625rem] font-bold text-[#252525]">
               {caption}
             </caption>
           )}

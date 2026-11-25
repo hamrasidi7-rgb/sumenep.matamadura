@@ -86,9 +86,11 @@ export function proxy(request: NextRequest) {
   response.headers.set("X-Robots-Tag", "noindex, nofollow");
   response.headers.set("Referrer-Policy", "same-origin");
   response.headers.set("X-Content-Type-Options", "nosniff");
-  // Only on page/API reads: a POST may be a logout that clears the cookie, and
-  // a refresh in the same response must not bring it back.
-  if (hasSessionCookie && safe) response.cookies.set(cookieName, token, sessionCookieOptions());
+  // Only on genuine page/API reads (never POSTs, login page, or router prefetches):
+  // a POST/logout clears the cookie, and background <Link> prefetches are not
+  // activity and must never resurrect a cookie cleared during concurrent logout.
+  const isPrefetch = request.headers.has("next-router-prefetch") || request.headers.get("purpose") === "prefetch";
+  if (hasSessionCookie && safe && !isLogin && !isPrefetch) response.cookies.set(cookieName, token, sessionCookieOptions());
   return response;
 }
 

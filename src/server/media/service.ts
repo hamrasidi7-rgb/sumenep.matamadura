@@ -5,6 +5,13 @@ import sharp from "sharp";
 import { z } from "zod";
 
 import type { MediaAsset } from "@/content/types";
+import {
+  clampFocal,
+  computeCoverCrop,
+  FEATURED_IMAGE_HEIGHT,
+  FEATURED_IMAGE_WIDTH,
+  type MediaUploadPreset,
+} from "@/lib/media-crop";
 import { logActivity } from "@/server/activity-log";
 
 import { buildMediaUrl, getMediaStorage } from "./storage";
@@ -51,6 +58,12 @@ export interface MediaDto {
   folderId: string | null;
 }
 
+export interface ProcessImageOptions {
+  preset?: MediaUploadPreset;
+  focalX?: number;
+  focalY?: number;
+}
+
 export function toMediaDto(
   media: Pick<Media, "id" | "storageKey" | "width" | "height" | "alt" | "caption" | "credit"> & {
     folderId?: string | null;
@@ -59,8 +72,8 @@ export function toMediaDto(
   return {
     id: media.id,
     src: mediaUrl(media.storageKey),
-    width: media.width ?? 1200,
-    height: media.height ?? 800,
+    width: media.width ?? FEATURED_IMAGE_WIDTH,
+    height: media.height ?? FEATURED_IMAGE_HEIGHT,
     alt: media.alt,
     caption: media.caption ?? "",
     credit: media.credit ?? "",
@@ -68,22 +81,26 @@ export function toMediaDto(
   };
 }
 
-/** Media row → the frontend's MediaAsset. Per-use alt/caption win over the media defaults. */
-export function toMediaAsset(media: MediaDto, override: { alt?: string; caption?: string } = {}): MediaAsset {
+/** Media row → the frontend's MediaAsset. Per-use alt/caption/credit win over the media defaults. */
+export function toMediaAsset(media: MediaDto, override: { alt?: string; caption?: string; credit?: string } = {}): MediaAsset {
   const caption = override.caption?.trim() || media.caption.trim();
+  const credit = override.credit?.trim() || media.credit.trim();
   return {
     src: media.src,
     width: media.width,
     height: media.height,
     alt: override.alt?.trim() || media.alt,
     ...(caption ? { caption } : {}),
-    ...(media.credit ? { credit: media.credit } : {}),
+    ...(credit ? { credit } : {}),
     fullSrc: media.src,
   };
 }
 
 /** Decodes, checks and converts an uploaded image. Throws MediaError for anything unacceptable. */
-export async function processImage(bytes: Buffer): Promise<{ data: Buffer; width: number; height: number }> {
+export async function processImage(
+  bytes: Buffer,
+  options: ProcessImageOptions = {},
+): Promise<{ data: Buffer; width: number; height: number }> {
   if (bytes.length === 0) throw new MediaError("Berkas kosong.");
   if (bytes.length > MAX_UPLOAD_BYTES) throw new MediaError("Berkas lebih dari 15 MB.");
   let format: string | undefined;
@@ -95,6 +112,39 @@ export async function processImage(bytes: Buffer): Promise<{ data: Buffer; width
   if (!format || !ACCEPTED_FORMATS.has(format)) {
     throw new MediaError("Format tidak didukung. Gunakan JPEG, PNG, WebP, AVIF, atau GIF.");
   }
+
+  if (options.preset === "featured") {
+    const focalX = clampFocal(options.focalX);
+    const focalY = clampFocal(options.focalY);
+    const { data: rawPixels, info: rawInfo } = await sharp(bytes, {
+      limitInputPixels: MAX_INPUT_PIXELS,
+      animated: false,
+    })
+      .rotate()
+      .toColorspace("srgb")
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const crop = computeCoverCrop(
+      rawInfo.width,
+      rawInfo.height,
+      FEATURED_IMAGE_WIDTH,
+      FEATURED_IMAGE_HEIGHT,
+      focalX,
+      focalY,
+    );
+
+    const { data, info } = await sharp(rawPixels, {
+      raw: { width: rawInfo.width, height: rawInfo.height, channels: rawInfo.channels },
+    })
+      .extract(crop)
+      .resize(FEATURED_IMAGE_WIDTH, FEATURED_IMAGE_HEIGHT, { fit: "fill" })
+      .webp({ quality: 85 })
+      .toBuffer({ resolveWithObject: true });
+
+    return { data, width: info.width, height: info.height };
+  }
+
   const { data, info } = await sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS, animated: false })
     .rotate()
     .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true })
@@ -115,14 +165,22 @@ export async function uploadImage(
   meta: MediaMeta,
   actor: { adminId: number; ip?: string | null; userAgent?: string | null },
   now = new Date(),
+  options: ProcessImageOptions = {},
 ): Promise<{ media: MediaDto; duplicate: boolean }> {
   const fields = mediaMetaSchema.parse(meta);
-  const sha256 = createHash("sha256").update(file.bytes).digest("hex");
+  const featured = options.preset === "featured";
+  const focalX = clampFocal(options.focalX);
+  const focalY = clampFocal(options.focalY);
+
+  const hasher = createHash("sha256").update(file.bytes);
+  if (featured) hasher.update(`|featured:${FEATURED_IMAGE_WIDTH}x${FEATURED_IMAGE_HEIGHT}:${focalX}:${focalY}`);
+  const sha256 = hasher.digest("hex");
+
   const existing = await db.media.findUnique({ where: { sha256 } });
   if (existing) return { media: toMediaDto(existing), duplicate: true };
 
   await assertFolderExists(db, fields.folderId);
-  const processed = await processImage(file.bytes);
+  const processed = await processImage(file.bytes, featured ? { preset: "featured", focalX, focalY } : {});
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
   const key = `${now.getUTCFullYear()}/${month}/${sha256.slice(0, 16)}.webp`;
   await getMediaStorage().put(key, processed.data, "image/webp");
@@ -156,6 +214,7 @@ export async function uploadImage(
           width: processed.width,
           height: processed.height,
           bytes: processed.data.length,
+          ...(featured ? { preset: "featured", focalX, focalY } : {}),
           ...(fields.folderId ? { folderId: fields.folderId } : {}),
         },
         ip: actor.ip,
@@ -170,6 +229,41 @@ export async function uploadImage(
     throw error;
   }
   return { media: toMediaDto(media), duplicate: false };
+}
+
+/**
+ * Generates a 1200 × 750 (16:10) featured-image crop from an existing Media Library item
+ * anchored on `(focalX%, focalY%)` without mutating the original asset shared by other articles.
+ */
+export async function cropExistingMediaToFeatured(
+  db: PrismaClient,
+  sourceMediaId: string,
+  focal: { focalX?: number; focalY?: number },
+  actor: { adminId: number; ip?: string | null; userAgent?: string | null },
+  now = new Date(),
+): Promise<{ media: MediaDto; duplicate: boolean }> {
+  const source = await db.media.findUnique({ where: { id: sourceMediaId } });
+  if (!source) throw new MediaError("Gambar sumber tidak ditemukan.");
+  const bytes = await getMediaStorage().get(source.storageKey);
+  if (!bytes) throw new MediaError("Berkas gambar sumber tidak tersedia di penyimpanan.");
+
+  return uploadImage(
+    db,
+    { name: source.originalName, bytes },
+    {
+      alt: source.alt,
+      caption: source.caption ?? "",
+      credit: source.credit ?? "",
+      folderId: source.folderId,
+    },
+    actor,
+    now,
+    {
+      preset: "featured",
+      focalX: clampFocal(focal.focalX),
+      focalY: clampFocal(focal.focalY),
+    },
+  );
 }
 
 export async function updateMediaMeta(

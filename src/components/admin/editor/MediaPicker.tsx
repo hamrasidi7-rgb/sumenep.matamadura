@@ -3,12 +3,25 @@
 import { Check, ImageUp, Loader2, Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { FocalPointPicker } from "@/components/admin/media/FocalPointPicker";
+import { FEATURED_IMAGE_LABEL, type MediaUploadPreset } from "@/lib/media-crop";
 import type { MediaDto } from "@/server/media/service";
 
-// Picker for images: upload a new one (with alt, caption, credit) or choose
-// from recent uploads. Full Media Library (folders, delete) comes in Fase 6.
+// Picker for images: upload a new one (with alt, caption, credit, and optional
+// 1200 × 750 featured crop/focal point) or choose from Media Library uploads.
 
-export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { title?: string; multiple: boolean; onDone: (chosen: MediaDto[] | null) => void }) {
+export function MediaPicker({
+  title = "Pilih gambar",
+  multiple,
+  preset = "default",
+  onDone,
+}: {
+  title?: string;
+  multiple: boolean;
+  preset?: MediaUploadPreset;
+  onDone: (chosen: MediaDto[] | null) => void;
+}) {
+  const isFeatured = preset === "featured";
   const [tab, setTab] = useState<"pilih" | "unggah">("pilih");
   const [items, setItems] = useState<MediaDto[]>([]);
   const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
@@ -19,7 +32,35 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [meta, setMeta] = useState({ alt: "", caption: "", credit: "", folderId: "" });
+  const [cropFeatured, setCropFeatured] = useState(isFeatured);
+  const [focal, setFocal] = useState({ focalX: 50, focalY: 50 });
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    setError(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (!file) {
+      setPreviewUrl(null);
+      setNaturalSize(null);
+      return;
+    }
+    const nextUrl = URL.createObjectURL(file);
+    setPreviewUrl(nextUrl);
+    setFocal({ focalX: 50, focalY: 50 });
+    const img = new Image();
+    img.onload = () => setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => setNaturalSize(null);
+    img.src = nextUrl;
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -77,6 +118,11 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
       form.append("caption", meta.caption);
       form.append("credit", meta.credit);
       if (meta.folderId) form.append("folderId", meta.folderId);
+      if (cropFeatured) {
+        form.append("preset", "featured");
+        form.append("focalX", String(focal.focalX));
+        form.append("focalY", String(focal.focalY));
+      }
       const res = await fetch("/api/admin/media", { method: "POST", body: form });
       const body = await res.json();
       if (!res.ok) {
@@ -89,6 +135,9 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
         setSelected((current) => [...current.filter((x) => x !== media.id), media.id]);
         setTab("pilih");
         setMeta({ alt: "", caption: "", credit: "", folderId: "" });
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+        setNaturalSize(null);
         if (fileRef.current) fileRef.current.value = "";
       } else {
         onDone([media]);
@@ -118,6 +167,12 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
             </button>
           ))}
         </div>
+
+        {isFeatured && (
+          <p className="border-b border-line bg-warm/60 px-4 py-2 text-xs text-muted">
+            Rekomendasi gambar utama: <strong className="font-semibold text-ink">{FEATURED_IMAGE_LABEL}</strong>. Pilih dari Media Library atau unggah foto baru untuk crop titik fokus otomatis.
+          </p>
+        )}
 
         {error && <p className="mx-4 mt-3 rounded-md bg-blush px-3 py-2 text-sm text-brand-deep" role="alert">{error}</p>}
 
@@ -161,8 +216,16 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
                     <li key={m.id}>
                       <button type="button" onClick={() => toggle(m.id)} aria-pressed={on} className={`group relative block w-full overflow-hidden rounded-md border-2 text-left ${on ? "border-brand" : "border-transparent"}`}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={m.src} alt={m.alt} className="aspect-[4/3] w-full bg-warm object-cover" loading="lazy" />
-                        <span className="block truncate px-1.5 py-1 text-xs text-muted">{m.alt || "(tanpa alt)"}</span>
+                        <img
+                          src={m.src}
+                          alt={m.alt}
+                          className={`${isFeatured ? "aspect-[16/10]" : "aspect-[4/3]"} w-full bg-warm object-cover`}
+                          loading="lazy"
+                        />
+                        <span className="flex items-center justify-between gap-1 px-1.5 py-1 text-xs text-muted">
+                          <span className="truncate">{m.alt || "(tanpa alt)"}</span>
+                          <span className="shrink-0 font-mono text-[10px] tabular-nums">{m.width}×{m.height}</span>
+                        </span>
                         {on && <Check className="absolute top-1.5 right-1.5 size-6 rounded-full bg-brand p-1 text-white" aria-hidden />}
                       </button>
                     </li>
@@ -175,8 +238,48 @@ export function MediaPicker({ title = "Pilih gambar", multiple, onDone }: { titl
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
             <label className="block text-sm font-semibold">
               Berkas gambar (JPEG, PNG, WebP, AVIF, GIF; maks. 15 MB)
-              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/gif" className="mt-1.5 block w-full text-sm" />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+                onChange={handleFileChange}
+                className="mt-1.5 block w-full text-sm"
+              />
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={cropFeatured}
+                onChange={(e) => setCropFeatured(e.target.checked)}
+                disabled={uploading}
+              />
+              <span>Pangkas otomatis ke ukuran gambar utama {FEATURED_IMAGE_LABEL}</span>
+            </label>
+            {previewUrl && (
+              cropFeatured ? (
+                <FocalPointPicker
+                  src={previewUrl}
+                  alt={meta.alt || "Pratinjau gambar utama"}
+                  focalX={focal.focalX}
+                  focalY={focal.focalY}
+                  onChange={setFocal}
+                  disabled={uploading}
+                  naturalSize={naturalSize}
+                />
+              ) : (
+                <div className="space-y-1">
+                  <div className="overflow-hidden rounded-md border border-line bg-warm">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={previewUrl} alt={meta.alt || "Pratinjau unggahan"} className="max-h-56 w-full object-contain" />
+                  </div>
+                  {naturalSize && (
+                    <p className="text-xs text-muted tabular-nums">
+                      Ukuran asli: {naturalSize.width} × {naturalSize.height} px (disimpan proporsional tanpa crop).
+                    </p>
+                  )}
+                </div>
+              )
+            )}
             <label className="block text-sm font-semibold">
               Teks alternatif (alt) <span className="text-brand">*</span>
               <input value={meta.alt} onChange={(e) => setMeta({ ...meta, alt: e.target.value })} maxLength={500} className="admin-input mt-1.5" placeholder="Jelaskan isi gambar" />

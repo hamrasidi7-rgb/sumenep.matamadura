@@ -43,6 +43,7 @@ export function StandardTemplate({ article, related }: Props) {
         <div id="isi-artikel" className="mx-auto max-w-[45rem]">
           {article.isDemo && <DemoNotice />}
           <ArticleBody blocks={article.body} />
+          <AuthorBio author={article.author} />
           <Footer article={article} />
         </div>
       </div>

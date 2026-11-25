@@ -32,6 +32,18 @@ export interface Author {
 
 export type ArticleTemplate = "standard" | "feature" | "spotlight";
 
+import type {
+  BoxTone,
+  DividerVariant,
+  EditorialFontSize,
+  FactBoxTone,
+  ImageAlign,
+  ImageRatio,
+  ImageSize,
+  LargeStatementTone,
+  PullQuoteVariant,
+} from "@/lib/editorial-tokens";
+
 /** Inline run of text with formatting, or a hard line break. */
 export type Inline =
   | {
@@ -41,6 +53,9 @@ export type Inline =
       underline?: boolean;
       strike?: boolean;
       code?: boolean;
+      color?: string;
+      highlight?: string;
+      fontSize?: EditorialFontSize;
       /** Already validated: http(s), mailto, tel or a site-relative path. */
       href?: string;
       newTab?: boolean;
@@ -59,19 +74,23 @@ export interface TimelineEvent {
 }
 
 export type ArticleBlock =
-  | { type: "paragraph"; content: Inline[] }
+  | { type: "paragraph"; content: Inline[]; dropCap?: boolean }
   | { type: "heading"; level: 2 | 3 | 4; content: Inline[]; id: string }
   | { type: "quote"; content: Inline[] }
   | { type: "list"; ordered: boolean; items: ListItem[] }
-  | { type: "image"; image: MediaAsset; size?: "column" | "wide" }
-  | { type: "pullQuote"; text: string; attribution?: string }
+  | { type: "image"; image: MediaAsset; size?: ImageSize; align?: ImageAlign; ratio?: Exclude<ImageRatio, "auto"> }
+  | { type: "imagePair"; images: [MediaAsset, MediaAsset]; ratio?: Exclude<ImageRatio, "auto"> }
+  | { type: "pullQuote"; text: string; attribution?: string; variant?: PullQuoteVariant }
+  | { type: "largeStatement"; headline: string; description?: string; source?: string; tone?: LargeStatementTone }
+  | { type: "factBox"; title: string; items: string[]; source?: string; tone?: FactBoxTone }
+  | { type: "callout"; label?: string; title?: string; body: string; tone?: BoxTone }
   | { type: "gallery"; title?: string; images: MediaAsset[] }
   | { type: "infographic"; title: string; image: MediaAsset; source?: string; dataDate?: string; note?: string }
   | { type: "timeline"; title?: string; events: TimelineEvent[] }
   | { type: "table"; caption?: string; header: string[]; rows: string[][]; source?: string }
   | { type: "map"; title?: string; latitude: number; longitude: number; zoom: number; marker?: boolean; caption?: string }
   | { type: "video"; provider: "youtube" | "vimeo"; videoId: string; title: string; caption?: string }
-  | { type: "divider" };
+  | { type: "divider"; variant?: DividerVariant };
 
 export interface ArticleSeo {
   title?: string;

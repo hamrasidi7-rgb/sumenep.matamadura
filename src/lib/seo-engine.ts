@@ -54,6 +54,17 @@ interface Analysis {
 
 function textOf(node: DocNode): string {
   if (node.type === "text") return node.text ?? "";
+  if (node.type === "pullQuote") return typeof node.attrs?.text === "string" ? node.attrs.text : "";
+  if (node.type === "largeStatement") {
+    return [node.attrs?.headline, node.attrs?.description].filter((v): v is string => typeof v === "string").join(" ");
+  }
+  if (node.type === "factBox") {
+    const items = Array.isArray(node.attrs?.items) ? node.attrs.items.filter((v): v is string => typeof v === "string") : [];
+    return [node.attrs?.title, ...items].filter((v): v is string => typeof v === "string").join(" ");
+  }
+  if (node.type === "callout") {
+    return [node.attrs?.title, node.attrs?.body].filter((v): v is string => typeof v === "string").join(" ");
+  }
   return (node.content ?? []).map(textOf).join(node.type.startsWith("table") ? " " : "");
 }
 
@@ -76,7 +87,12 @@ export function analyzeBody(doc: DocNode | null, host = HOST): Analysis {
     if (node.type === "heading" && text) headings.push({ level: Number(node.attrs?.level) || 2, text });
     if (node.type === "paragraph" && text) paragraphCount++;
     if (text) texts.push(text);
-    if (node.type === "articleImage") imageAlts.push(typeof node.attrs?.alt === "string" ? node.attrs.alt : "");
+    if (node.type === "articleImage") {
+      imageAlts.push(typeof node.attrs?.alt === "string" ? node.attrs.alt : "");
+      if (node.attrs?.layout === "pair" && typeof node.attrs?.pairMediaId === "string" && node.attrs.pairMediaId) {
+        imageAlts.push(typeof node.attrs?.pairAlt === "string" ? node.attrs.pairAlt : "");
+      }
+    }
   }
   const links: Analysis["links"] = [];
   const collect = (node: DocNode) => {
