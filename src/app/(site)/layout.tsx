@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Lora, Newsreader } from "next/font/google";
+import { Inter, Lora, Newsreader, Teko } from "next/font/google";
 
 import { ChatorWidget } from "@/components/chator/ChatorWidget";
 import { SiteFooter } from "@/components/layout/SiteFooter";
@@ -29,6 +29,13 @@ const inter = Inter({
   display: "swap",
 });
 
+const teko = Teko({
+  subsets: ["latin"],
+  weight: ["500", "600"],
+  variable: "--font-wordmark",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
   title: { default: `${SITE.name} · ${SITE.tagline}`, template: `%s · ${SITE.name}` },
@@ -55,7 +62,7 @@ export const viewport: Viewport = {
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const sections = await getSections();
   return (
-    <html lang="id" data-scroll-behavior="smooth" className={`${newsreader.variable} ${lora.variable} ${inter.variable}`}>
+    <html lang="id" data-scroll-behavior="smooth" className={`${newsreader.variable} ${lora.variable} ${inter.variable} ${teko.variable}`}>
       <body>
         <a
           href="#konten"

@@ -8,9 +8,8 @@ import { MobileNavigation } from "./MobileNavigation";
 
 /**
  * Editorial header for SUMENEP – Mata Madura.
- * Reference: Logo Pertama Header.png
  * - Search icon (left)
- * - Centered serif logo SUMENEP with MATA MADURA subtitle & horizontal red rules
+ * - Centered serif masthead SUMENEP with two-tone sans-serif "matamadura" wordmark
  * - Hamburger menu (right)
  * - Off-white background (#F5F2ED)
  */
@@ -18,7 +17,7 @@ export function SiteHeader({ sections }: { sections: Section[] }) {
   return (
     <header className="border-b border-[#DEDAD4] bg-[#F5F2ED]">
       <div className="container-site">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center py-3.5 md:py-5 xl:py-6">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center py-3 md:py-4 xl:py-5">
           {/* Search icon (left) */}
           <Link
             href="/cari"
@@ -29,23 +28,20 @@ export function SiteHeader({ sections }: { sections: Section[] }) {
             <span className="hidden font-sans text-sm font-medium lg:inline">Cari</span>
           </Link>
 
-          {/* Centered logo */}
+          {/* Centered wordmark */}
           <Link
             href="/"
-            className="group block justify-self-center py-1"
+            className="group block justify-self-center py-0.5"
             aria-label={`${SITE.name} — Beranda`}
           >
             <div className="flex flex-col items-center select-none text-center">
               <span className="font-display text-[1.875rem] font-bold tracking-[0.18em] text-[#171717] uppercase leading-none sm:text-[2.25rem] md:text-[2.75rem] lg:text-[3.25rem] mr-[-0.18em]">
                 SUMENEP
               </span>
-              <div className="mt-1 flex items-center justify-center gap-2 sm:mt-1.5 sm:gap-3 md:mt-2 md:gap-3.5">
-                <span className="h-px w-5 bg-[#A6192E] sm:w-8 md:w-11" aria-hidden="true" />
-                <span className="font-display text-[9px] font-semibold tracking-[0.25em] text-[#A6192E] uppercase leading-none sm:text-[11px] md:text-[13px] mr-[-0.25em]">
-                  MATA MADURA
-                </span>
-                <span className="h-px w-5 bg-[#A6192E] sm:w-8 md:w-11" aria-hidden="true" />
-              </div>
+              <span className="mt-1 inline-flex items-baseline justify-center font-[family-name:var(--font-wordmark)] text-[1.4375rem] font-medium lowercase leading-[0.82] tracking-[0.01em] sm:mt-1.5 sm:text-[1.625rem] md:text-[1.875rem] lg:text-[2.125rem]">
+                <span className="text-[#171717]">mata</span>
+                <span className="text-[#CC0000]">madura</span>
+              </span>
             </div>
           </Link>
 
