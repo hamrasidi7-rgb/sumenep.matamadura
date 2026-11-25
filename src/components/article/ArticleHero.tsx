@@ -23,7 +23,7 @@ const IMAGE_SIZES: Record<ArticleHeroVariant, string> = {
  */
 export function ArticleHero({ article, variant }: { article: ArticleView; variant: ArticleHeroVariant }) {
   return (
-    <div className="mx-auto w-full max-w-[43rem] px-[22px] pt-4 sm:px-6 md:pt-6 xl:pt-8">
+    <div className="mx-auto mt-5 w-full max-w-[43rem] px-[22px] sm:px-6 md:mt-6">
       <div className={`mx-auto ${CONTAINER_WIDTH[variant]}`}>
         <ArticleImage
           image={article.hero}

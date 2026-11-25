@@ -46,7 +46,7 @@ export function ArticleHeader({
   sharePath: string;
 }) {
   return (
-    <header className="mx-auto mt-5 w-full max-w-[43rem] px-[22px] sm:px-6 md:mt-7">
+    <header className="mx-auto w-full max-w-[43rem] px-[22px] pt-5 sm:px-6 md:pt-7 xl:pt-8">
       <div className="mx-auto max-w-[40rem] text-left">
         {article.section && (
           <Link

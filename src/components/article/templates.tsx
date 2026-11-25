@@ -31,13 +31,13 @@ function Footer({ article }: { article: ArticleView }) {
   );
 }
 
-/** A. Standard News — photo-first editorial flow. */
+/** A. Standard News — editorial header first, followed by featured image & body. */
 export function StandardTemplate({ article, related }: Props) {
   return (
     <article data-template="standard">
       <ReadingProgress />
-      <ArticleHero article={article} variant="column" />
       <ArticleHeader article={article} variant="standard" sharePath={pathOf(article)} />
+      <ArticleHero article={article} variant="column" />
       <div className="mx-auto mt-6 w-full max-w-[43rem] px-[22px] sm:px-6 md:mt-8">
         <div id="isi-artikel" className="mx-auto max-w-[40rem]">
           {article.isDemo && <DemoNotice />}
@@ -52,13 +52,13 @@ export function StandardTemplate({ article, related }: Props) {
   );
 }
 
-/** B. Editorial / Feature — wide dominant photo-first flow, drop cap & end mark. */
+/** B. Editorial / Feature — editorial header first, followed by featured image, drop cap & end mark. */
 export function FeatureTemplate({ article, related }: Props) {
   return (
     <article data-template="feature">
       <ReadingProgress />
-      <ArticleHero article={article} variant="wide" />
       <ArticleHeader article={article} variant="feature" sharePath={pathOf(article)} />
+      <ArticleHero article={article} variant="wide" />
       <div className="mx-auto mt-6 w-full max-w-[43rem] px-[22px] sm:px-6 md:mt-8">
         <div id="isi-artikel" className="mx-auto max-w-[40rem]">
           {article.isDemo && <DemoNotice />}
@@ -73,14 +73,14 @@ export function FeatureTemplate({ article, related }: Props) {
   );
 }
 
-/** C. Spotlight / Longform — dominant 16:10 photo-first flow + table of contents. */
+/** C. Spotlight / Longform — editorial header first, followed by featured image + table of contents. */
 export function SpotlightTemplate({ article, related }: Props) {
   const toc = extractToc(article.body);
   return (
     <article data-template="spotlight">
       <ReadingProgress />
-      <ArticleHero article={article} variant="spotlight" />
       <ArticleHeader article={article} variant="spotlight" sharePath={pathOf(article)} />
+      <ArticleHero article={article} variant="spotlight" />
       <div className="mx-auto mt-6 w-full max-w-[75rem] px-[22px] sm:px-6 md:mt-8 md:px-8 xl:max-w-[82rem] xl:px-10">
         <div className="mx-auto max-w-[40rem] xl:grid xl:max-w-none xl:grid-cols-[minmax(0,1fr)_minmax(0,40rem)_minmax(0,1fr)] xl:gap-x-12">
           <div className="hidden xl:block">
