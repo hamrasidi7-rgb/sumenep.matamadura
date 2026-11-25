@@ -11,7 +11,7 @@ export function RelatedArticles({ articles }: { articles: ArticleView[] }) {
   return (
     <aside aria-labelledby="artikel-terkait" className="container-site mt-14 md:mt-20">
       <div className="mx-auto max-w-[62rem] border-t-2 border-ink pt-5">
-        <h2 id="artikel-terkait" className="font-display text-[1.625rem] leading-none font-bold md:text-[2rem]">
+        <h2 id="artikel-terkait" className="font-serif text-[1.5rem] leading-none font-bold md:text-[1.875rem]">
           Artikel terkait
         </h2>
         <ul className="mt-5 grid gap-5 md:mt-7 md:grid-cols-3 md:gap-7">
@@ -24,16 +24,19 @@ export function RelatedArticles({ articles }: { articles: ArticleView[] }) {
                 </Link>
                 <div className="min-w-0 md:mt-3">
                   {a.section && (
-                    <Link href={sectionHref(a.section)} className="label-section link-underline text-[0.8125rem]">
+                    <Link
+                      href={sectionHref(a.section)}
+                      className="link-underline inline-block font-serif text-xs leading-tight font-bold tracking-[0.08em] text-brand uppercase"
+                    >
                       {a.section.name}
                     </Link>
                   )}
-                  <h3 className="font-display mt-0.5 line-clamp-3 text-[1.0625rem] leading-[1.22] font-bold text-ink md:text-[1.1875rem]">
+                  <h3 className="font-serif mt-1 line-clamp-3 text-[1.0625rem] leading-[1.25] font-bold text-[#1c1c1c] md:text-[1.1875rem]">
                     <Link href={href} className="hover:text-brand-deep">
                       {a.title}
                     </Link>
                   </h3>
-                  <p className="meta mt-1.5">
+                  <p className="meta mt-1.5 font-normal">
                     <time dateTime={a.publishedAt}>{formatDate(a.publishedAt)}</time>
                   </p>
                 </div>

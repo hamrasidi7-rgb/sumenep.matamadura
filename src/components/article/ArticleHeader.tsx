@@ -52,16 +52,16 @@ export function ArticleHeader({
         {article.section && (
           <Link
             href={sectionHref(article.section)}
-            className="label-section link-underline inline-block text-xs tracking-[0.05em] uppercase md:text-sm"
+            className="link-underline inline-block font-serif text-[0.8125rem] leading-tight font-bold tracking-[0.08em] text-brand uppercase md:text-sm"
           >
             {article.section.name}
           </Link>
         )}
         <h1
-          className={`font-serif mt-2.5 text-left font-bold text-[#252525] ${
+          className={`font-serif mt-2.5 text-left font-bold text-[#1c1c1c] ${
             editorial
-              ? "text-[clamp(1.9375rem,7.8vw,2.375rem)] leading-[1.12] tracking-[-0.015em] md:text-[2.75rem] xl:text-[3.375rem]"
-              : "text-[clamp(1.875rem,7.5vw,2.25rem)] leading-[1.14] tracking-[-0.015em] md:text-[2.625rem] xl:text-[3.125rem]"
+              ? "text-[clamp(1.9375rem,7.8vw,2.375rem)] leading-[1.08] tracking-[-0.015em] md:text-[2.75rem] xl:text-[3.375rem]"
+              : "text-[clamp(1.875rem,7.5vw,2.25rem)] leading-[1.1] tracking-[-0.015em] md:text-[2.625rem] xl:text-[3.125rem]"
           }`}
         >
           {article.title}

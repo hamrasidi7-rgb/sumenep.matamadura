@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -413,7 +413,7 @@ describe("Editorial Block Editor & Nieman Typography (end-to-end)", () => {
       const bodyWrap = document.querySelector("[data-article-body]")!;
       const p = document.querySelector('[data-article-body] p[data-drop-cap="true"]')!;
       const h2 = document.querySelector("[data-article-body] h2")!;
-      const cap = document.querySelector("figcaption.meta")!;
+      const cap = document.querySelector("article figcaption")!;
       const floatFig = document.querySelector('[data-article-body] figure[class*="float-left"]')!;
       const fullFig = [...document.querySelectorAll("[data-article-body] figure")].find((el) =>
         (el.className || "").includes("75rem"),
@@ -444,8 +444,8 @@ describe("Editorial Block Editor & Nieman Typography (end-to-end)", () => {
     assert.ok(metricsDesktop.h1Size >= 42 && metricsDesktop.h1Size <= 56, `h1Size=${metricsDesktop.h1Size}`);
     assert.match(metricsDesktop.bodyFont, /Lora/i);
     assert.ok(metricsDesktop.bodySize >= 19 && metricsDesktop.bodySize <= 20.5, `bodySize=${metricsDesktop.bodySize}`);
-    assert.equal(metricsDesktop.bodyColor, "rgb(37, 37, 37)"); // #252525
-    assert.ok(metricsDesktop.bodyLine / metricsDesktop.bodySize >= 1.5 && metricsDesktop.bodyLine / metricsDesktop.bodySize <= 1.7);
+    assert.equal(metricsDesktop.bodyColor, "rgb(34, 34, 34)"); // #222222
+    assert.ok(metricsDesktop.bodyLine / metricsDesktop.bodySize >= 1.6 && metricsDesktop.bodyLine / metricsDesktop.bodySize <= 1.75);
     assert.match(metricsDesktop.h2Font, /Lora/i);
     assert.ok(metricsDesktop.h2Weight >= 700);
     assert.match(metricsDesktop.capFont, /Inter/i);

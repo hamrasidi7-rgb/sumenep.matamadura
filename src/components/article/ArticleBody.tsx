@@ -55,7 +55,7 @@ export function ArticleBody({
   return (
     <div
       data-article-body=""
-      className="flow-root font-serif text-[1.125rem] leading-[1.75] font-[440] text-[#292929] md:text-[1.1875rem] md:leading-[1.75]"
+      className="flow-root font-serif text-[1.125rem] leading-[1.65] font-normal text-[#222222] md:text-[1.1875rem] md:leading-[1.7]"
     >
       {blocks.map((b, i) => {
         const slot = i === firstHeading && beforeFirstHeading ? beforeFirstHeading : null;
@@ -86,14 +86,14 @@ export function ArticleBody({
                     ? "mt-9 mb-3 text-[1.28125rem] leading-[1.26] md:text-[1.4375rem]"
                     : "mt-8 mb-2 text-[1.125rem] leading-snug";
               return (
-                <H id={b.id} className={`clear-both scroll-mt-20 font-serif font-bold tracking-[-0.01em] text-[#252525] ${cls}`}>
+                <H id={b.id} className={`clear-both scroll-mt-20 font-serif font-bold tracking-[-0.01em] text-[#1c1c1c] ${cls}`}>
                   <RichInline content={b.content} />
                 </H>
               );
             }
             case "quote":
               return (
-                <blockquote className="clear-both my-8 border-l-4 border-[#A61B2B]/75 pl-5 font-serif text-[1.05em] text-[#252525]/90 italic">
+                <blockquote className="clear-both my-8 border-l-4 border-[#A61B2B]/75 pl-5 font-serif text-[1.05em] leading-[1.5] font-normal text-[#222222] italic">
                   <p>
                     <RichInline content={b.content} />
                   </p>

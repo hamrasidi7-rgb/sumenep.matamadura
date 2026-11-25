@@ -51,6 +51,11 @@
     @apply bg-[var(--color-bg)] text-[var(--color-text-primary)] font-sans antialiased;
     overflow-x: clip;
   }
+  /* Article pages: only real font weights (Lora/Inter are variable fonts, so
+     400/500/600/700 are all genuine) — never browser-synthesised bold. */
+  article[data-template] {
+    font-synthesis-weight: none;
+  }
   main {
     padding-bottom: 3.5rem;
   }

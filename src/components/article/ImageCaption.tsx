@@ -3,10 +3,12 @@ export function ImageCaption({ caption, credit, className = "" }: { caption?: st
   if (!caption && !credit) return null;
   const creditText = credit && (/^(foto|ilustrasi|grafis|diolah|dok|sumber)/i.test(credit) ? credit : `Foto: ${credit}`);
   return (
-    <figcaption className={`meta mt-2.5 ${className}`}>
+    <figcaption
+      className={`mt-2.5 font-sans text-[0.8125rem] leading-[1.45] font-normal text-[#3a3836] md:text-sm ${className}`}
+    >
       {caption}
       {caption && creditText ? " " : null}
-      {creditText && <span className="whitespace-nowrap text-[#6b6f76]">({creditText})</span>}
+      {creditText && <span className="text-[0.75rem] font-normal whitespace-nowrap text-[#5c5957] md:text-[0.8125rem]">({creditText})</span>}
     </figcaption>
   );
 }

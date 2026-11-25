@@ -29,7 +29,7 @@ export function ArticleMetadata({
             {article.author.name}
           </Link>
         </p>
-        <p className={`mt-0.5 font-sans text-[0.8125rem] leading-snug md:text-sm ${muted}`}>
+        <p className={`mt-0.5 font-sans text-[0.8125rem] leading-snug font-normal md:text-sm ${muted}`}>
           <time dateTime={article.publishedAt}>{formatDateLong(article.publishedAt)}</time>
           <span aria-hidden className="mx-1.5 hidden opacity-60 md:inline">
             ·
