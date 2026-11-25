@@ -441,15 +441,15 @@ describe("Editorial Block Editor & Nieman Typography (end-to-end)", () => {
     });
 
     assert.match(metricsDesktop.h1Font, /Lora/i);
-    assert.ok(metricsDesktop.h1Weight >= 700);
-    assert.ok(metricsDesktop.h1Size >= 42 && metricsDesktop.h1Size <= 56, `h1Size=${metricsDesktop.h1Size}`);
+    assert.equal(metricsDesktop.h1Weight, 600);
+    assert.ok(metricsDesktop.h1Size >= 28 && metricsDesktop.h1Size <= 42, `h1Size=${metricsDesktop.h1Size}`);
     assert.match(metricsDesktop.bodyFont, /Lora/i);
     assert.equal(metricsDesktop.bodyWeight, 500);
-    assert.ok(metricsDesktop.bodySize >= 19 && metricsDesktop.bodySize <= 20.5, `bodySize=${metricsDesktop.bodySize}`);
+    assert.ok(metricsDesktop.bodySize >= 18 && metricsDesktop.bodySize <= 20.5, `bodySize=${metricsDesktop.bodySize}`);
     assert.equal(metricsDesktop.bodyColor, "rgb(36, 36, 36)"); // #242424
     assert.ok(metricsDesktop.bodyLine / metricsDesktop.bodySize >= 1.6 && metricsDesktop.bodyLine / metricsDesktop.bodySize <= 1.75);
     assert.match(metricsDesktop.h2Font, /Lora/i);
-    assert.ok(metricsDesktop.h2Weight >= 700);
+    assert.equal(metricsDesktop.h2Weight, 600);
     assert.match(metricsDesktop.capFont, /Inter/i);
     assert.equal(metricsDesktop.floatCss, "left");
     assert.ok(metricsDesktop.fullWidthPx >= 1000, `fullWidthPx=${metricsDesktop.fullWidthPx}`);
@@ -513,7 +513,7 @@ describe("Editorial Block Editor & Nieman Typography (end-to-end)", () => {
       };
     });
 
-    assert.ok(metricsMobile.h1Size >= 30 && metricsMobile.h1Size <= 37, `mobile h1=${metricsMobile.h1Size}`);
+    assert.ok(metricsMobile.h1Size >= 24 && metricsMobile.h1Size <= 34, `mobile h1=${metricsMobile.h1Size}`);
     assert.ok(metricsMobile.bodySize >= 17 && metricsMobile.bodySize <= 18.5, `mobile body=${metricsMobile.bodySize}`);
     assert.equal(metricsMobile.floatCss, "none", "floated images stack vertically on mobile");
     assert.equal(metricsMobile.pairCols, 1, "pair images stack vertically on mobile");

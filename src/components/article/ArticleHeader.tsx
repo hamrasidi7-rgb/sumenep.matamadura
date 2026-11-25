@@ -38,40 +38,33 @@ export function Breadcrumb({ article, className = "" }: { article: ArticleView; 
  */
 export function ArticleHeader({
   article,
-  variant,
+  variant: _variant,
   sharePath,
 }: {
   article: ArticleView;
   variant: "standard" | "feature" | "spotlight";
   sharePath: string;
 }) {
-  const editorial = variant === "feature" || variant === "spotlight";
   return (
-    <header className="container-site mt-6 md:mt-8">
-      <div className="mx-auto max-w-[45rem] text-left">
+    <header className="mx-auto mt-5 w-full max-w-[43rem] px-[22px] sm:px-6 md:mt-7">
+      <div className="mx-auto max-w-[40rem] text-left">
         {article.section && (
           <Link
             href={sectionHref(article.section)}
-            className="link-underline inline-block font-serif text-[0.8125rem] leading-tight font-bold tracking-[0.08em] text-brand uppercase md:text-sm"
+            className="link-underline inline-block font-sans text-[0.75rem] leading-tight font-semibold tracking-[0.08em] text-brand uppercase"
           >
             {article.section.name}
           </Link>
         )}
-        <h1
-          className={`font-serif mt-2.5 text-left font-bold text-[#1c1c1c] ${
-            editorial
-              ? "text-[clamp(1.9375rem,7.8vw,2.375rem)] leading-[1.08] tracking-[-0.015em] md:text-[2.75rem] xl:text-[3.375rem]"
-              : "text-[clamp(1.875rem,7.5vw,2.25rem)] leading-[1.1] tracking-[-0.015em] md:text-[2.625rem] xl:text-[3.125rem]"
-          }`}
-        >
+        <h1 className="font-serif mt-2 text-left text-[1.625rem] leading-[1.2] font-semibold tracking-[-0.012em] text-[#171717] md:text-[1.9375rem] md:leading-[1.2]">
           {article.title}
         </h1>
         {article.standfirst && (
-          <p className="font-serif mt-2.5 text-left text-[1.125rem] leading-[1.45] font-normal text-[#555555] md:mt-3 md:text-[1.25rem] md:leading-[1.45]">
+          <p className="font-serif mt-2.5 text-left text-[1.015625rem] leading-[1.45] font-normal text-[#333333] md:mt-3 md:text-[1.21875rem] md:leading-[1.45]">
             {article.standfirst}
           </p>
         )}
-        <div className="mt-5 flex flex-col gap-3 border-y border-line py-3.5 md:mt-6 md:flex-row md:items-center md:justify-between md:gap-4">
+        <div className="mt-4 flex flex-col gap-2.5 border-y border-[#DEDAD4] py-3 md:mt-5 md:flex-row md:items-center md:justify-between md:gap-4">
           <ArticleMetadata article={article} align="left" />
           <ShareArticle path={sharePath} title={article.title} compact />
         </div>

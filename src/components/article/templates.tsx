@@ -38,8 +38,8 @@ export function StandardTemplate({ article, related }: Props) {
       <ReadingProgress />
       <ArticleHero article={article} variant="column" />
       <ArticleHeader article={article} variant="standard" sharePath={pathOf(article)} />
-      <div className="container-site mt-8 md:mt-10">
-        <div id="isi-artikel" className="mx-auto max-w-[45rem]">
+      <div className="mx-auto mt-6 w-full max-w-[43rem] px-[22px] sm:px-6 md:mt-8">
+        <div id="isi-artikel" className="mx-auto max-w-[40rem]">
           {article.isDemo && <DemoNotice />}
           <ArticleBody blocks={article.body} />
           <AuthorBio author={article.author} />
@@ -59,8 +59,8 @@ export function FeatureTemplate({ article, related }: Props) {
       <ReadingProgress />
       <ArticleHero article={article} variant="wide" />
       <ArticleHeader article={article} variant="feature" sharePath={pathOf(article)} />
-      <div className="container-site mt-8 md:mt-10">
-        <div id="isi-artikel" className="mx-auto max-w-[45rem]">
+      <div className="mx-auto mt-6 w-full max-w-[43rem] px-[22px] sm:px-6 md:mt-8">
+        <div id="isi-artikel" className="mx-auto max-w-[40rem]">
           {article.isDemo && <DemoNotice />}
           <ArticleBody blocks={article.body} dropCap endMark />
           <AuthorBio author={article.author} />
@@ -81,8 +81,8 @@ export function SpotlightTemplate({ article, related }: Props) {
       <ReadingProgress />
       <ArticleHero article={article} variant="spotlight" />
       <ArticleHeader article={article} variant="spotlight" sharePath={pathOf(article)} />
-      <div className="mx-auto mt-8 w-full max-w-[75rem] px-5 md:mt-10 md:px-8 xl:max-w-[86rem] xl:px-10">
-        <div className="mx-auto max-w-[45rem] xl:grid xl:max-w-none xl:grid-cols-[minmax(0,1fr)_minmax(0,45rem)_minmax(0,1fr)] xl:gap-x-12">
+      <div className="mx-auto mt-6 w-full max-w-[75rem] px-[22px] sm:px-6 md:mt-8 md:px-8 xl:max-w-[82rem] xl:px-10">
+        <div className="mx-auto max-w-[40rem] xl:grid xl:max-w-none xl:grid-cols-[minmax(0,1fr)_minmax(0,40rem)_minmax(0,1fr)] xl:gap-x-12">
           <div className="hidden xl:block">
             <div className="ml-auto h-full max-w-[15rem]">
               <ArticleTableOfContents entries={toc} variant="sidebar" />

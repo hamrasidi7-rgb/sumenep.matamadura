@@ -50,13 +50,11 @@ export function ChatorWidget() {
         }}
         aria-haspopup="dialog"
         aria-label="Buka Chator AI (sedang dalam pengembangan)"
+        title="Chator AI"
         data-hidden={hidden || undefined}
-        className="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex size-[4.25rem] flex-col items-center justify-center gap-0.5 rounded-full bg-brand text-white shadow-[var(--shadow-float)] ring-2 ring-white/70 transition-[transform,opacity,background-color] duration-200 hover:bg-brand-deep data-hidden:pointer-events-none data-hidden:translate-y-[calc(100%+2rem)] data-hidden:opacity-0 motion-reduce:transition-none md:size-[4.5rem] lg:right-[calc(1.5rem+env(safe-area-inset-right))] lg:bottom-6 lg:data-hidden:pointer-events-auto lg:data-hidden:translate-y-0 lg:data-hidden:opacity-100"
+        className="fixed right-[calc(0.75rem+env(safe-area-inset-right))] bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 flex size-9 items-center justify-center rounded-full border border-[#D5CFC4] bg-[#FAF6F0]/90 text-[#444444] shadow-sm backdrop-blur-sm transition-[transform,opacity,background-color,color,border-color] duration-200 hover:border-[#171717] hover:bg-white hover:text-[#171717] data-hidden:pointer-events-none data-hidden:translate-y-[calc(100%+1.5rem)] data-hidden:opacity-0 motion-reduce:transition-none md:size-10 lg:right-[calc(1.25rem+env(safe-area-inset-right))] lg:bottom-5 lg:data-hidden:pointer-events-auto lg:data-hidden:translate-y-0 lg:data-hidden:opacity-100"
       >
-        <Bot aria-hidden className="size-6 md:size-[1.625rem]" strokeWidth={1.9} />
-        <span aria-hidden className="font-sans text-[0.625rem] leading-none font-semibold tracking-[0.01em] md:text-[0.6875rem]">
-          Chator AI
-        </span>
+        <Bot aria-hidden className="size-4 md:size-[1.125rem]" strokeWidth={1.75} />
       </button>
       {loaded && <ChatorPanel open={open} onClose={() => setOpen(false)} />}
     </>

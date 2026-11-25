@@ -55,7 +55,7 @@ export function ArticleBody({
   return (
     <div
       data-article-body=""
-      className="flow-root font-serif text-[1.125rem] leading-[1.65] font-medium text-[#242424] md:text-[1.1875rem] md:leading-[1.7]"
+      className="flow-root font-serif text-[1.125rem] leading-[1.65] font-medium text-[#242424] md:text-[1.1875rem] md:leading-[1.68]"
     >
       {blocks.map((b, i) => {
         const slot = i === firstHeading && beforeFirstHeading ? beforeFirstHeading : null;
@@ -68,7 +68,7 @@ export function ArticleBody({
                   data-drop-cap={showDropCap ? "true" : undefined}
                   className={`mb-6 font-medium text-[#242424] ${
                     showDropCap
-                      ? "clear-left first-letter:float-left first-letter:mt-1 first-letter:mr-3 first-letter:font-serif first-letter:text-[3.75em] first-letter:leading-[0.82] first-letter:font-bold first-letter:text-[#A61B2B]"
+                      ? "clear-left first-letter:float-left first-letter:mt-1 first-letter:mr-3 first-letter:font-serif first-letter:text-[3.75em] first-letter:leading-[0.82] first-letter:font-semibold first-letter:text-[#A61B2B]"
                       : ""
                   }`}
                 >
@@ -81,12 +81,12 @@ export function ArticleBody({
               const H = b.level === 2 ? "h2" : b.level === 3 ? "h3" : "h4";
               const cls =
                 b.level === 2
-                  ? "mt-12 mb-4 text-[1.5625rem] leading-[1.22] md:text-[1.875rem]"
+                  ? "mt-10 mb-3.5 text-[1.3125rem] leading-[1.42] md:text-[1.5rem] md:leading-[1.42]"
                   : b.level === 3
-                    ? "mt-9 mb-3 text-[1.28125rem] leading-[1.26] md:text-[1.4375rem]"
-                    : "mt-8 mb-2 text-[1.125rem] leading-snug";
+                    ? "mt-8 mb-3 text-[1.15625rem] leading-[1.45] md:text-[1.28125rem] md:leading-[1.45]"
+                    : "mt-7 mb-2 text-[1.0625rem] leading-[1.45] md:text-[1.125rem]";
               return (
-                <H id={b.id} className={`clear-both scroll-mt-20 font-serif font-bold tracking-[-0.01em] text-[#1c1c1c] ${cls}`}>
+                <H id={b.id} className={`clear-both scroll-mt-20 font-serif font-semibold tracking-[-0.01em] text-[#171717] ${cls}`}>
                   <RichInline content={b.content} />
                 </H>
               );

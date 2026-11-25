@@ -5,15 +5,15 @@ import { ArticleImage } from "./ArticleImage";
 export type ArticleHeroVariant = "column" | "wide" | "spotlight";
 
 const CONTAINER_WIDTH: Record<ArticleHeroVariant, string> = {
-  column: "max-w-[62rem]",
-  wide: "max-w-[70rem]",
-  spotlight: "max-w-[74rem]",
+  column: "max-w-[40rem]",
+  wide: "max-w-[40rem]",
+  spotlight: "max-w-[42rem]",
 };
 
 const IMAGE_SIZES: Record<ArticleHeroVariant, string> = {
-  column: "(min-width: 1024px) 992px, 100vw",
-  wide: "(min-width: 1280px) 1120px, 100vw",
-  spotlight: "(min-width: 1280px) 1184px, 100vw",
+  column: "(min-width: 768px) 640px, 100vw",
+  wide: "(min-width: 768px) 640px, 100vw",
+  spotlight: "(min-width: 768px) 672px, 100vw",
 };
 
 /**
@@ -23,16 +23,16 @@ const IMAGE_SIZES: Record<ArticleHeroVariant, string> = {
  */
 export function ArticleHero({ article, variant }: { article: ArticleView; variant: ArticleHeroVariant }) {
   return (
-    <div className="w-full md:container-site md:pt-6 xl:pt-8">
+    <div className="mx-auto w-full max-w-[43rem] px-[22px] pt-4 sm:px-6 md:pt-6 xl:pt-8">
       <div className={`mx-auto ${CONTAINER_WIDTH[variant]}`}>
         <ArticleImage
           image={article.hero}
           ratio="16/10"
           eager
           rounded={false}
-          mediaClassName="md:rounded-[var(--radius-media)]"
+          mediaClassName="rounded-[0.375rem]"
           sizes={IMAGE_SIZES[variant]}
-          captionClassName="px-5 text-left md:px-0"
+          captionClassName="text-left"
         />
       </div>
     </div>
