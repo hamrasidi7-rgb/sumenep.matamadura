@@ -24,14 +24,14 @@ export function EditorialNote({ note, articles = [] }: { note: Note; articles?: 
           className="h-auto w-[4.25rem] shrink-0 md:w-32 xl:w-36"
         />
         <span aria-hidden className="w-px self-stretch bg-brand/35" />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 text-left">
           <h2
             id="catatan-sumenep"
-            className="font-display text-[1.3125rem] leading-tight font-bold text-[var(--color-primary)] md:text-[1.875rem] xl:text-[2.125rem]"
+            className="font-display text-left text-[1.3125rem] leading-tight font-bold text-[var(--color-primary)] md:text-[1.875rem] xl:text-[2.125rem]"
           >
             {note.title}
           </h2>
-          <span className="font-display mt-1 block text-[0.9375rem] leading-snug text-ink italic md:text-lg xl:text-xl">
+          <span className="font-display mt-1 block text-left text-[0.9375rem] leading-snug text-ink italic md:text-lg xl:text-xl">
             {note.description}
           </span>
         </div>
@@ -55,13 +55,13 @@ export function EditorialNote({ note, articles = [] }: { note: Note; articles?: 
                     className="object-cover w-full h-full"
                   />
                 </Link>
-                <div className="mt-3">
-                  <h3 className="font-display mt-1 text-[clamp(1.125rem,4vw,1.5rem)] leading-[1.05] font-bold tracking-[-0.018em] text-[var(--color-text-primary)]">
+                <div className="mt-3 text-left">
+                  <h3 className="font-display mt-1 text-left text-[clamp(1.125rem,4vw,1.5rem)] leading-[1.05] font-bold tracking-[-0.018em] text-[var(--color-text-primary)]">
                     <Link href={href} className="hover:text-brand-deep">
                       {a.title}
                     </Link>
                   </h3>
-                  <p className="mt-2 text-[var(--color-text-secondary)] font-sans text-base leading-[1.5]">
+                  <p className="mt-2 text-left text-[var(--color-text-secondary)] font-sans text-base leading-[1.5]">
                     {a.standfirst}
                   </p>
                   <ArticleMeta

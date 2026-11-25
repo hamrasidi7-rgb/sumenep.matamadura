@@ -28,7 +28,7 @@ export function ArchiveView({
 }) {
   return (
     <div className="container-site pt-8 md:pt-12">
-      <header className="max-w-3xl">
+      <header className="max-w-3xl text-left">
         <nav aria-label="Breadcrumb" className="meta">
           <ol className="flex flex-wrap items-center gap-1.5">
             <li>

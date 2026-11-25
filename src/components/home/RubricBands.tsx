@@ -35,13 +35,13 @@ export function RubricBands({ bands }: { bands: HomepageRubricBand[] }) {
                         className="object-cover w-full h-full"
                       />
                     </Link>
-                    <div className="mt-3">
-                      <h3 className="font-display mt-1 text-[clamp(1.125rem,4vw,1.5rem)] leading-[1.05] font-bold tracking-[-0.018em] text-[var(--color-text-primary)]">
+                    <div className="mt-3 text-left">
+                      <h3 className="font-display mt-1 text-left text-[clamp(1.125rem,4vw,1.5rem)] leading-[1.05] font-bold tracking-[-0.018em] text-[var(--color-text-primary)]">
                         <Link href={href} className="hover:text-brand-deep">
                           {a.title}
                         </Link>
                       </h3>
-                      <p className="mt-2 text-[var(--color-text-secondary)] font-sans text-base leading-[1.5]">
+                      <p className="mt-2 text-left text-[var(--color-text-secondary)] font-sans text-base leading-[1.5]">
                         {a.standfirst}
                       </p>
                       <ArticleMeta

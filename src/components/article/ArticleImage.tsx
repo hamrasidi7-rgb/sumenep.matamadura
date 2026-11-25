@@ -16,6 +16,7 @@ export function ArticleImage({
   group = "artikel",
   caption = true,
   className = "",
+  mediaClassName = "",
   captionClassName = "",
 }: {
   image: MediaAsset;
@@ -26,6 +27,7 @@ export function ArticleImage({
   group?: string;
   caption?: boolean;
   className?: string;
+  mediaClassName?: string;
   captionClassName?: string;
 }) {
   return (
@@ -40,7 +42,14 @@ export function ArticleImage({
         className="block w-full cursor-zoom-in"
         aria-label={`Perbesar gambar: ${image.alt}`}
       >
-        <MediaImage media={image} ratio={ratio ?? `${image.width}/${image.height}`} sizes={sizes} eager={eager} rounded={rounded} />
+        <MediaImage
+          media={image}
+          ratio={ratio ?? `${image.width}/${image.height}`}
+          sizes={sizes}
+          eager={eager}
+          rounded={rounded}
+          className={mediaClassName}
+        />
       </button>
       {caption && <ImageCaption caption={image.caption} credit={image.credit} className={captionClassName} />}
     </figure>

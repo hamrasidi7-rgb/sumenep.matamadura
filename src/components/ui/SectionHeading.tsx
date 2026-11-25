@@ -15,7 +15,7 @@ export function SectionHeading({
 }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <h2 id={id} className="font-display flex items-center gap-3 text-[1.625rem] leading-none font-bold tracking-[-0.01em] md:text-[2rem]">
+      <h2 id={id} className="font-display flex items-center gap-3 text-left text-[1.625rem] leading-none font-bold tracking-[-0.01em] md:text-[2rem]">
         <span aria-hidden className="inline-block h-[0.95em] w-[0.32em] -skew-x-[18deg] rounded-[1px] bg-brand" />
         {title}
       </h2>

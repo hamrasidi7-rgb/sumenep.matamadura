@@ -5,9 +5,8 @@ import { ArticleBody } from "./ArticleBody";
 import { AuthorBio, ArticleTags, DemoNotice } from "./ArticleExtras";
 import { ArticleGallery } from "./ArticleGallery";
 import { ArticleHeader } from "./ArticleHeader";
-import { ArticleHero, SpotlightHero } from "./ArticleHero";
+import { ArticleHero } from "./ArticleHero";
 import { ArticleLightbox } from "./ArticleLightbox";
-import { ArticleMetadata } from "./ArticleMetadata";
 import { ArticleTableOfContents } from "./ArticleTableOfContents";
 import { ReadingProgress } from "./ReadingProgress";
 import { RelatedArticles } from "./RelatedArticles";
@@ -32,13 +31,13 @@ function Footer({ article }: { article: ArticleView }) {
   );
 }
 
-/** A. Standard News — daily reporting. */
+/** A. Standard News — photo-first editorial flow. */
 export function StandardTemplate({ article, related }: Props) {
   return (
-    <article className="pt-6 md:pt-10" data-template="standard">
+    <article data-template="standard">
       <ReadingProgress />
-      <ArticleHeader article={article} variant="standard" sharePath={pathOf(article)} />
       <ArticleHero article={article} variant="column" />
+      <ArticleHeader article={article} variant="standard" sharePath={pathOf(article)} />
       <div className="container-site mt-8 md:mt-10">
         <div id="isi-artikel" className="mx-auto max-w-[45rem]">
           {article.isDemo && <DemoNotice />}
@@ -53,14 +52,14 @@ export function StandardTemplate({ article, related }: Props) {
   );
 }
 
-/** B. Editorial / Feature — reportage, profiles, opinion. Drop cap, end mark, author bio. */
+/** B. Editorial / Feature — wide dominant photo-first flow, drop cap & end mark. */
 export function FeatureTemplate({ article, related }: Props) {
   return (
-    <article className="pt-6 md:pt-12" data-template="feature">
+    <article data-template="feature">
       <ReadingProgress />
-      <ArticleHeader article={article} variant="feature" sharePath={pathOf(article)} />
       <ArticleHero article={article} variant="wide" />
-      <div className="container-site mt-9 md:mt-12">
+      <ArticleHeader article={article} variant="feature" sharePath={pathOf(article)} />
+      <div className="container-site mt-8 md:mt-10">
         <div id="isi-artikel" className="mx-auto max-w-[45rem]">
           {article.isDemo && <DemoNotice />}
           <ArticleBody blocks={article.body} dropCap endMark />
@@ -74,19 +73,14 @@ export function FeatureTemplate({ article, related }: Props) {
   );
 }
 
-/** C. Spotlight / Longform — full-bleed hero, progress, clickable table of contents. */
+/** C. Spotlight / Longform — dominant 16:10 photo-first flow + table of contents. */
 export function SpotlightTemplate({ article, related }: Props) {
   const toc = extractToc(article.body);
   return (
     <article data-template="spotlight">
       <ReadingProgress />
-      <SpotlightHero article={article} />
-      <div className="container-site mt-6 md:mt-8">
-        <div className="mx-auto flex max-w-[45rem] flex-col gap-3 border-b border-line pb-5 md:flex-row md:items-center md:justify-between">
-          <ArticleMetadata article={article} />
-          <ShareArticle path={pathOf(article)} title={article.title} compact />
-        </div>
-      </div>
+      <ArticleHero article={article} variant="spotlight" />
+      <ArticleHeader article={article} variant="spotlight" sharePath={pathOf(article)} />
       <div className="mx-auto mt-8 w-full max-w-[75rem] px-5 md:mt-10 md:px-8 xl:max-w-[86rem] xl:px-10">
         <div className="mx-auto max-w-[45rem] xl:grid xl:max-w-none xl:grid-cols-[minmax(0,1fr)_minmax(0,45rem)_minmax(0,1fr)] xl:gap-x-12">
           <div className="hidden xl:block">
